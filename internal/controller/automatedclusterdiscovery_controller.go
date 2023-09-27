@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	clustersv1alpha1 "weave.works/cluster-reflector-controller/api/v1alpha1"
+	clustersv1alpha1 "github.com/weaveworks/cluster-reflector-controller/api/v1alpha1"
 )
 
 // AutomatedClusterDiscoveryReconciler reconciles a AutomatedClusterDiscovery object

@@ -32,8 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	clustersv1alpha1 "weave.works/cluster-reflector-controller/api/v1alpha1"
-	"weave.works/cluster-reflector-controller/internal/controller"
+	clustersv1alpha1 "github.com/weaveworks/cluster-reflector-controller/api/v1alpha1"
+	"github.com/weaveworks/cluster-reflector-controller/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 

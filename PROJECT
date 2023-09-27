@@ -6,7 +6,7 @@ domain: weave.works
 layout:
 - go.kubebuilder.io/v4
 projectName: cluster-reflector-controller
-repo: weave.works/cluster-reflector-controller
+repo: github.com/weaveworks/cluster-reflector-controller
 resources:
 - api:
     crdVersion: v1
@@ -15,6 +15,6 @@ resources:
   domain: weave.works
   group: clusters
   kind: AutomatedClusterDiscovery
-  path: weave.works/cluster-reflector-controller/api/v1alpha1
+  path: github.com/weaveworks/cluster-reflector-controller/api/v1alpha1
   version: v1alpha1
 version: "3"
