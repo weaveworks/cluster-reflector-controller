@@ -47,9 +47,17 @@ type AutomatedClusterDiscoveryReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.16.0/pkg/reconcile
 func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	clusterDiscovery := &clustersv1alpha1.AutomatedClusterDiscovery{}
+	if err := r.Get(ctx, req.NamespacedName, clusterDiscovery); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	logger.Info("Reconciling cluster reflector",
+		"type", clusterDiscovery.Spec.Type,
+		"name", clusterDiscovery.Spec.Name,
+	)
 
 	return ctrl.Result{}, nil
 }
