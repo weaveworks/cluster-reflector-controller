@@ -29,7 +29,7 @@ type AutomatedClusterDiscoverySpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Name is the name of the cluster
-	Name string `json:"foo,omitempty"`
+	Name string `json:"name,omitempty"`
 
 	// Type is the provider type
 	Type string `json:"type,omitempty"`
