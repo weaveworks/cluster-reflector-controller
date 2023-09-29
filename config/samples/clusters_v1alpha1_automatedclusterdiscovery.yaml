@@ -1,0 +1,12 @@
+apiVersion: clusters.weave.works/v1alpha1
+kind: AutomatedClusterDiscovery
+metadata:
+  labels:
+    app.kubernetes.io/name: automatedclusterdiscovery
+    app.kubernetes.io/instance: automatedclusterdiscovery-sample
+    app.kubernetes.io/part-of: cluster-reflector-controller
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: cluster-reflector-controller
+  name: automatedclusterdiscovery-sample
+spec:
+  # TODO(user): Add fields here
