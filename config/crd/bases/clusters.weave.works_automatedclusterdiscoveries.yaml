@@ -36,6 +36,25 @@ spec:
             description: AutomatedClusterDiscoverySpec defines the desired state of
               AutomatedClusterDiscovery
             properties:
+              aks:
+                description: AKS defines the desired state of AKS
+                properties:
+                  exclude:
+                    description: Exclude is the list of clusters to exclude
+                    items:
+                      type: string
+                    type: array
+                  filter:
+                    description: Filter criteria for AKS clusters
+                    properties:
+                      location:
+                        description: Location is the location of the AKS clusters
+                        type: string
+                    type: object
+                  subscriptionId:
+                    description: SubscriptionID is the Azure subscription ID
+                    type: string
+                type: object
               name:
                 description: Name is the name of the cluster
                 type: string

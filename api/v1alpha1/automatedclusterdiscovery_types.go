@@ -23,6 +23,23 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// AKS defines the desired state of AKS
+type AKS struct {
+	// SubscriptionID is the Azure subscription ID
+	SubscriptionID string `json:"subscriptionId,omitempty"`
+
+	Filter AKSFilter `json:"filter,omitempty"`
+
+	// Exclude is the list of clusters to exclude
+	Exclude []string `json:"exclude,omitempty"`
+}
+
+// Filter criteria for AKS clusters
+type AKSFilter struct {
+	// Location is the location of the AKS clusters
+	Location string `json:"location,omitempty"`
+}
+
 // AutomatedClusterDiscoverySpec defines the desired state of AutomatedClusterDiscovery
 type AutomatedClusterDiscoverySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -33,6 +50,8 @@ type AutomatedClusterDiscoverySpec struct {
 
 	// Type is the provider type
 	Type string `json:"type,omitempty"`
+
+	AKS *AKS `json:"aks,omitempty"`
 }
 
 // AutomatedClusterDiscoveryStatus defines the observed state of AutomatedClusterDiscovery
