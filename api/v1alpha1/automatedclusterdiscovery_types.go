@@ -20,13 +20,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // AKS defines the desired state of AKS
 type AKS struct {
 	// SubscriptionID is the Azure subscription ID
-	SubscriptionID string `json:"subscriptionId,omitempty"`
+	// +required
+	SubscriptionID string `json:"subscriptionID"`
 
 	Filter AKSFilter `json:"filter,omitempty"`
 
@@ -42,22 +40,26 @@ type AKSFilter struct {
 
 // AutomatedClusterDiscoverySpec defines the desired state of AutomatedClusterDiscovery
 type AutomatedClusterDiscoverySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	// Name is the name of the cluster
 	Name string `json:"name,omitempty"`
 
 	// Type is the provider type
-	Type string `json:"type,omitempty"`
+	// +kubebuilder:validation:Enum=aks
+	Type string `json:"type"`
 
 	AKS *AKS `json:"aks,omitempty"`
+
+	// The interval at which to run the discovery
+	// +required
+	Interval metav1.Duration `json:"interval"`
 }
 
 // AutomatedClusterDiscoveryStatus defines the observed state of AutomatedClusterDiscovery
 type AutomatedClusterDiscoveryStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Inventory contains the list of Kubernetes resource object references that
+	// have been successfully applied
+	// +optional
+	Inventory *ResourceInventory `json:"inventory,omitempty"`
 }
 
 //+kubebuilder:object:root=true

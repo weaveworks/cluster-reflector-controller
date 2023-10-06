@@ -12,10 +12,13 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
+// AzureProvider queries all AKS clusters for the provided SubscriptionID and
+// returns the clusters and kubeconfigs for the clusters.
 type AzureProvider struct {
 	SubscriptionID string
 }
 
+// NewAzureProvider creates and returns an AzureProvider ready for use.
 func NewAzureProvider(subscriptionID string) *AzureProvider {
 	return &AzureProvider{
 		SubscriptionID: subscriptionID,

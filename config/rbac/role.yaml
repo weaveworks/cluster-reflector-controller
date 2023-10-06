@@ -5,6 +5,18 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - clusters.weave.works
   resources:
   - automatedclusterdiscoveries
@@ -30,3 +42,15 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - gitops.weave.works
+  resources:
+  - gitopsclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
