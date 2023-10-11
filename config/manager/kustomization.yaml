@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: ghcr.io/weaveworks/cluster-reflector-controller
-  newTag: cd895b0
+  newTag: latest
