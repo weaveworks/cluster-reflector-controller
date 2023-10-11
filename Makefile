@@ -174,16 +174,16 @@ helmify:
 
 .PHONY: helm
 helm: manifests kustomize helmify
-	$(KUSTOMIZE) build config/default | $(HELMIFY) -crd-dir ../weave-gitops-enterprise/charts/gitopssets-controller
+	$(KUSTOMIZE) build config/default | $(HELMIFY) -crd-dir ../weave-gitops-enterprise/charts/cluster-reflector-controller
 
 .PHONY: helm-chart
 helm-chart: manifests kustomize helmify
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default | $(HELMIFY) -crd-dir charts/gitopssets-controller
-	echo "fullnameOverride: gitopssets" >> charts/gitopssets-controller/values.yaml
-	cp LICENSE charts/gitopssets-controller/LICENSE
-	helm lint charts/gitopssets-controller
-	helm package charts/gitopssets-controller --app-version $(VERSION) --version $(CHART_VERSION) --destination /tmp/helm-repo
+	$(KUSTOMIZE) build config/default | $(HELMIFY) -crd-dir charts/cluster-reflector-controller
+	echo "fullnameOverride: cluster-reflector" >> charts/cluster-reflector-controller/values.yaml
+	cp LICENSE charts/cluster-reflector-controller/LICENSE
+	helm lint charts/cluster-reflector-controller
+	helm package charts/cluster-reflector-controller --app-version $(VERSION) --version $(CHART_VERSION) --destination /tmp/helm-repo
 
 publish-helm-chart: helm-chart
-	helm push /tmp/helm-repo/gitopssets-controller-${CHART_VERSION}.tgz oci://${CHART_REGISTRY}
+	helm push /tmp/helm-repo/cluster-reflector-controller-${CHART_VERSION}.tgz oci://${CHART_REGISTRY}
