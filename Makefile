@@ -1,8 +1,16 @@
+VERSION ?= $(shell git describe --tags --always)
+# Strip off leading `v`: v0.12.0 -> 0.12.0
+# Seems to be idiomatic for chart versions: https://helm.sh/docs/topics/charts/#the-chart-file
+CHART_VERSION := $(shell echo $(VERSION) | sed 's/^v//')
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= ghcr.io/weaveworks/cluster-reflector-controller:${VERSION}
+
+CHART_REGISTRY ?= ghcr.io/weaveworks/charts
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.28.0
+
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -137,6 +145,7 @@ KUBECTL ?= kubectl
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
+HELMIFY ?= $(LOCALBIN)/helmify
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.1.1
@@ -161,3 +170,25 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+.PHONY: helmify
+helmify: $(HELMIFY)
+$(HELMIFY): $(LOCALBIN)
+	GOBIN=$(LOCALBIN) go install github.com/arttor/helmify/cmd/helmify@v0.4.3
+
+.PHONY: helm
+helm: manifests kustomize helmify
+	$(KUSTOMIZE) build config/default | $(HELMIFY) -crd-dir ../weave-gitops-enterprise/charts/cluster-reflector-controller
+
+.PHONY: helm-chart
+helm-chart: manifests kustomize helmify
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default | $(HELMIFY) -crd-dir charts/cluster-reflector-controller
+	echo "fullnameOverride: cluster-reflector" >> charts/cluster-reflector-controller/values.yaml
+	cp LICENSE charts/cluster-reflector-controller/LICENSE
+	helm lint charts/cluster-reflector-controller
+	helm package charts/cluster-reflector-controller --app-version $(VERSION) --version $(CHART_VERSION) --destination /tmp/helm-repo
+
+.PHONY: publish-helm-chart
+publish-helm-chart: helm-chart
+	helm push /tmp/helm-repo/cluster-reflector-controller-${CHART_VERSION}.tgz oci://${CHART_REGISTRY}
