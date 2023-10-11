@@ -2,6 +2,8 @@ module github.com/weaveworks/cluster-reflector-controller
 
 go 1.20
 
+replace github.com/weaveworks/cluster-reflector-controller/api => ./api
+
 require (
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.10
@@ -80,6 +82,7 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.2
 	github.com/weaveworks/cluster-controller v1.5.2
+	github.com/weaveworks/cluster-reflector-controller/api v0.0.0-00010101000000-000000000000
 	github.com/weaveworks/weave-gitops v0.32.0
 )
 
