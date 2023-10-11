@@ -4,6 +4,11 @@ IMG ?= controller:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.28.0
 
+VERSION ?= $(shell git describe --tags --always)
+# Strip off leading `v`: v0.12.0 -> 0.12.0
+# Seems to be idiomatic for chart versions: https://helm.sh/docs/topics/charts/#the-chart-file
+CHART_VERSION := $(shell echo $(VERSION) | sed 's/^v//')
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -161,3 +166,24 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+HELMIFY = $(LOCALBIN)/helmify
+.PHONY: helmify
+helmify:
+	$(call go-get-tool,$(HELMIFY),github.com/arttor/helmify/cmd/helmify@v0.4.3)
+
+.PHONY: helm
+helm: manifests kustomize helmify
+	$(KUSTOMIZE) build config/default | $(HELMIFY) -crd-dir ../weave-gitops-enterprise/charts/gitopssets-controller
+
+.PHONY: helm-chart
+helm-chart: manifests kustomize helmify
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default | $(HELMIFY) -crd-dir charts/gitopssets-controller
+	echo "fullnameOverride: gitopssets" >> charts/gitopssets-controller/values.yaml
+	cp LICENSE charts/gitopssets-controller/LICENSE
+	helm lint charts/gitopssets-controller
+	helm package charts/gitopssets-controller --app-version $(VERSION) --version $(CHART_VERSION) --destination /tmp/helm-repo
+
+publish-helm-chart: helm-chart
+	helm push /tmp/helm-repo/gitopssets-controller-${CHART_VERSION}.tgz oci://${CHART_REGISTRY}
