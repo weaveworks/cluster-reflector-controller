@@ -1,13 +1,16 @@
-
-# Image URL to use all building/pushing image targets
-IMG ?= controller:latest
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.28.0
-
 VERSION ?= $(shell git describe --tags --always)
 # Strip off leading `v`: v0.12.0 -> 0.12.0
 # Seems to be idiomatic for chart versions: https://helm.sh/docs/topics/charts/#the-chart-file
 CHART_VERSION := $(shell echo $(VERSION) | sed 's/^v//')
+
+# Image URL to use all building/pushing image targets
+IMG ?= ghcr.io/weaveworks/cluster-reflector-controller:${VERSION}
+
+CHART_REGISTRY ?= ghcr.io/weaveworks/charts
+
+# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
+ENVTEST_K8S_VERSION = 1.28.0
+
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
