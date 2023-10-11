@@ -145,6 +145,7 @@ KUBECTL ?= kubectl
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
+HELMIFY ?= $(LOCALBIN)/helmify
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.1.1
@@ -170,10 +171,10 @@ envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 
-HELMIFY = $(LOCALBIN)/helmify
 .PHONY: helmify
-helmify:
-	$(call go-get-tool,$(HELMIFY),github.com/arttor/helmify/cmd/helmify@v0.4.3)
+helmify: $(HELMIFY)
+$(HELMIFY): $(LOCALBIN)
+	GOBIN=$(LOCALBIN) go install github.com/arttor/helmify/cmd/helmify@v0.4.3
 
 .PHONY: helm
 helm: manifests kustomize helmify
@@ -188,5 +189,6 @@ helm-chart: manifests kustomize helmify
 	helm lint charts/cluster-reflector-controller
 	helm package charts/cluster-reflector-controller --app-version $(VERSION) --version $(CHART_VERSION) --destination /tmp/helm-repo
 
+.PHONY: publish-helm-chart
 publish-helm-chart: helm-chart
 	helm push /tmp/helm-repo/cluster-reflector-controller-${CHART_VERSION}.tgz oci://${CHART_REGISTRY}
