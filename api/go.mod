@@ -1,4 +1,4 @@
-module github.com/cluster-reflector-controller/api
+module github.com/weaveworks/cluster-reflector-controller/api
 
 go 1.20
 
