@@ -51,20 +51,55 @@ spec:
                         description: Location is the location of the AKS clusters
                         type: string
                     type: object
-                  subscriptionId:
+                  subscriptionID:
                     description: SubscriptionID is the Azure subscription ID
                     type: string
+                required:
+                - subscriptionID
                 type: object
+              interval:
+                description: The interval at which to run the discovery
+                type: string
               name:
                 description: Name is the name of the cluster
                 type: string
               type:
                 description: Type is the provider type
+                enum:
+                - aks
                 type: string
+            required:
+            - interval
+            - type
             type: object
           status:
             description: AutomatedClusterDiscoveryStatus defines the observed state
               of AutomatedClusterDiscovery
+            properties:
+              inventory:
+                description: Inventory contains the list of Kubernetes resource object
+                  references that have been successfully applied
+                properties:
+                  entries:
+                    description: Entries of Kubernetes resource object references.
+                    items:
+                      description: ResourceRef contains the information necessary
+                        to locate a resource within a cluster.
+                      properties:
+                        id:
+                          description: ID is the string representation of the Kubernetes
+                            resource object's metadata, in the format '<namespace>_<name>_<group>_<kind>'.
+                          type: string
+                        v:
+                          description: Version is the API version of the Kubernetes
+                            resource object's kind.
+                          type: string
+                      required:
+                      - id
+                      - v
+                      type: object
+                    type: array
+                type: object
             type: object
         type: object
     served: true
