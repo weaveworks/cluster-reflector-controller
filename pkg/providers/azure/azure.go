@@ -4,38 +4,56 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
+	acs "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v4"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/weaveworks/cluster-reflector-controller/pkg/providers"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
+// AKSclusterLister implementations query for AKS clusters.
+type AKSClusterClient interface {
+	NewListPager(options *acs.ManagedClustersClientListOptions) *runtime.Pager[acs.ManagedClustersClientListResponse]
+	ListClusterAdminCredentials(ctx context.Context, resourceGroupName string, resourceName string, options *acs.ManagedClustersClientListClusterAdminCredentialsOptions) (acs.ManagedClustersClientListClusterAdminCredentialsResponse, error)
+}
+
+func clientFactory(subscriptionID string) (AKSClusterClient, error) {
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to obtain a credential: %v", err)
+	}
+	client, err := acs.NewManagedClustersClient(subscriptionID, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create client: %v", err)
+	}
+
+	return client, nil
+}
+
 // AzureProvider queries all AKS clusters for the provided SubscriptionID and
 // returns the clusters and kubeconfigs for the clusters.
 type AzureProvider struct {
 	SubscriptionID string
+	ClientFactory  func(string) (AKSClusterClient, error)
 }
 
 // NewAzureProvider creates and returns an AzureProvider ready for use.
 func NewAzureProvider(subscriptionID string) *AzureProvider {
 	return &AzureProvider{
 		SubscriptionID: subscriptionID,
+		ClientFactory:  clientFactory,
 	}
 }
 
 func (p *AzureProvider) ListClusters(ctx context.Context) ([]*providers.ProviderCluster, error) {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	clusters := []*providers.ProviderCluster{}
+	client, err := p.ClientFactory(p.SubscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to obtain a credential: %v", err)
-	}
-	client, err := armcontainerservice.NewManagedClustersClient(p.SubscriptionID, cred, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client: %v", err)
+		return nil, err
 	}
 
-	clusters := []*providers.ProviderCluster{}
 	pager := client.NewListPager(nil)
 	for pager.More() {
 		nextResult, err := pager.NextPage(ctx)
@@ -43,7 +61,7 @@ func (p *AzureProvider) ListClusters(ctx context.Context) ([]*providers.Provider
 			return nil, fmt.Errorf("failed to advance page: %v", err)
 		}
 		for _, aksCluster := range nextResult.Value {
-			kubeConfig, err := getKubeconfigForCluster(ctx, client, aksCluster)
+			kubeConfig, err := getKubeConfigForCluster(ctx, client, aksCluster)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get kubeconfig for cluster: %v", err)
 			}
@@ -58,8 +76,7 @@ func (p *AzureProvider) ListClusters(ctx context.Context) ([]*providers.Provider
 	return clusters, nil
 }
 
-func getKubeconfigForCluster(ctx context.Context, client *armcontainerservice.ManagedClustersClient, aksCluster *armcontainerservice.ManagedCluster) (*clientcmdapi.Config, error) {
-
+func getKubeConfigForCluster(ctx context.Context, client AKSClusterClient, aksCluster *acs.ManagedCluster) (*clientcmdapi.Config, error) {
 	resourceGroup, err := aksClusterResourceGroup(*aksCluster.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cluster resource group: %v", err)
@@ -68,7 +85,7 @@ func getKubeconfigForCluster(ctx context.Context, client *armcontainerservice.Ma
 	credentialsResponse, err := client.ListClusterAdminCredentials(ctx,
 		resourceGroup,
 		*aksCluster.Name,
-		&armcontainerservice.ManagedClustersClientListClusterAdminCredentialsOptions{ServerFqdn: nil},
+		&acs.ManagedClustersClientListClusterAdminCredentialsOptions{ServerFqdn: nil},
 	)
 
 	if err != nil {
