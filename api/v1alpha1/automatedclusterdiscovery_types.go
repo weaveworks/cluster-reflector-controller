@@ -52,6 +52,11 @@ type AutomatedClusterDiscoverySpec struct {
 	// The interval at which to run the discovery
 	// +required
 	Interval metav1.Duration `json:"interval"`
+
+	// Suspend tells the controller to suspend the reconciliation of this
+	// AutomatedClusterDiscovery.
+	// +optional
+	Suspend bool `json:"suspend,omitempty"`
 }
 
 // AutomatedClusterDiscoveryStatus defines the observed state of AutomatedClusterDiscovery

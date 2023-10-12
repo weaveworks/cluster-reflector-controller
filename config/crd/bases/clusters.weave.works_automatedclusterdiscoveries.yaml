@@ -63,6 +63,10 @@ spec:
               name:
                 description: Name is the name of the cluster
                 type: string
+              suspend:
+                description: Suspend tells the controller to suspend the reconciliation
+                  of this AutomatedClusterDiscovery.
+                type: boolean
               type:
                 description: Type is the provider type
                 enum:
