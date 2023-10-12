@@ -41,6 +41,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
+const k8sManagedByLabel = "app.kubernetes.io/managed-by"
+
 // AutomatedClusterDiscoveryReconciler reconciles a AutomatedClusterDiscovery object
 type AutomatedClusterDiscoveryReconciler struct {
 	client.Client
@@ -159,6 +161,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		if err := controllerutil.SetOwnerReference(cd, gitopsCluster, r.Scheme); err != nil {
 			return inventoryResources, fmt.Errorf("failed to set ownership on created GitopsCluster: %w", err)
 		}
+		gitopsCluster.SetLabels(labelsForResource(*cd))
 		if err := r.Client.Create(ctx, gitopsCluster); err != nil {
 			return inventoryResources, err
 		}
@@ -182,6 +185,8 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		if err := controllerutil.SetOwnerReference(cd, secret, r.Scheme); err != nil {
 			return inventoryResources, fmt.Errorf("failed to set ownership on created Secret: %w", err)
 		}
+		secret.SetLabels(labelsForResource(*cd))
+
 		if err := r.Client.Create(ctx, secret); err != nil {
 			return inventoryResources, err
 		}
@@ -320,4 +325,13 @@ func clustersToMapping(clusters []*providers.ProviderCluster) map[string]*provid
 	}
 
 	return names
+}
+
+func labelsForResource(acd clustersv1alpha1.AutomatedClusterDiscovery) map[string]string {
+	return map[string]string{
+		k8sManagedByLabel:                       "cluster-reflector-controller",
+		"clusters.weave.works/origin-name":      acd.GetName(),
+		"clusters.weave.works/origin-namespace": acd.GetNamespace(),
+		"clusters.weave.works/origin-type":      acd.Spec.Type,
+	}
 }

@@ -110,16 +110,25 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, ctrl.Result{RequeueAfter: time.Minute}, result)
 
+		wantLabels := map[string]string{
+			"app.kubernetes.io/managed-by":          "cluster-reflector-controller",
+			"clusters.weave.works/origin-name":      "test-aks",
+			"clusters.weave.works/origin-namespace": "default",
+			"clusters.weave.works/origin-type":      "aks",
+		}
+
 		gitopsCluster := &gitopsv1alpha1.GitopsCluster{}
 		err = k8sClient.Get(ctx, types.NamespacedName{Name: "cluster-1", Namespace: aksCluster.Namespace}, gitopsCluster)
 		assert.NoError(t, err)
 		assert.Equal(t, gitopsv1alpha1.GitopsClusterSpec{
 			SecretRef: &meta.LocalObjectReference{Name: "cluster-1-kubeconfig"},
 		}, gitopsCluster.Spec)
+		assertHasLabels(t, gitopsCluster, wantLabels)
 
 		secret := &corev1.Secret{}
 		err = k8sClient.Get(ctx, types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: aksCluster.Namespace}, secret)
 		assert.NoError(t, err)
+		assertHasLabels(t, secret, wantLabels)
 
 		value, err := clientcmd.Write(*testProvider.response[0].KubeConfig)
 		assert.NoError(t, err)
@@ -348,6 +357,18 @@ func assertHasOwnerReference(t *testing.T, obj metav1.Object, ownerRef metav1.Ow
 	}
 
 	t.Fatalf("%s %s does not have OwnerReference %s", obj.GetResourceVersion(), obj.GetName(), &ownerRef)
+}
+
+func assertHasLabels(t *testing.T, o client.Object, want map[string]string) {
+	labels := o.GetLabels()
+	for k, v := range want {
+		kv, ok := labels[k]
+		if !ok {
+			t.Errorf("%s %s/%s is missing label %q with value %q", o.GetObjectKind().GroupVersionKind().Kind, o.GetNamespace(), o.GetName(), k, v)
+			continue
+		}
+		assert.Equal(t, v, kv)
+	}
 }
 
 func isOwnerReferenceEqual(a, b metav1.OwnerReference) bool {
