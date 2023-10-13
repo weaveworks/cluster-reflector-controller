@@ -294,6 +294,64 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, value, secret.Data["value"])
 	})
+	t.Run("test suspend option", func(t *testing.T) {
+		ctx := context.TODO()
+		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-aks",
+				Namespace: "default",
+			},
+			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
+				Type: "aks",
+				AKS: &clustersv1alpha1.AKS{
+					SubscriptionID: "subscription-123",
+				},
+				Interval: metav1.Duration{Duration: time.Minute},
+				Suspend:  true,
+			},
+		}
+
+		testProvider := stubProvider{
+			response: []*providers.ProviderCluster{
+				{
+					Name: "cluster-1",
+					KubeConfig: &kubeconfig.Config{
+						APIVersion: "v1",
+						Clusters: map[string]*kubeconfig.Cluster{
+							"cluster-1": {
+								Server:                   "https://cluster-prod.example.com/",
+								CertificateAuthorityData: []uint8(testCAData),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		reconciler := &AutomatedClusterDiscoveryReconciler{
+			Client: k8sClient,
+			Scheme: scheme,
+			AKSProvider: func(providerID string) providers.Provider {
+				return &testProvider
+			},
+		}
+
+		assert.NoError(t, reconciler.SetupWithManager(mgr))
+
+		key := types.NamespacedName{Name: aksCluster.Name, Namespace: aksCluster.Namespace}
+		err = mgr.GetClient().Create(ctx, aksCluster)
+		assert.NoError(t, err)
+		defer deleteObject(t, k8sClient, aksCluster)
+
+		_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
+		assert.NoError(t, err)
+
+		err = k8sClient.Get(ctx, client.ObjectKeyFromObject(aksCluster), aksCluster)
+		assert.NoError(t, err)
+		assert.Equal(t, true, aksCluster.Spec.Suspend)
+
+		assertInventoryHasNoItems(t, aksCluster)
+	})
 }
 
 type stubProvider struct {
@@ -346,6 +404,17 @@ func assertInventoryHasItems(t *testing.T, acd *clustersv1alpha1.AutomatedCluste
 	sort.Slice(entries, func(i, j int) bool { return entries[i].ID < entries[j].ID })
 	want := &clustersv1alpha1.ResourceInventory{Entries: entries}
 	assert.Equal(t, want, acd.Status.Inventory)
+}
+
+func assertInventoryHasNoItems(t *testing.T, acd *clustersv1alpha1.AutomatedClusterDiscovery) {
+	t.Helper()
+	if acd.Status.Inventory == nil {
+		return
+	}
+
+	if l := len(acd.Status.Inventory.Entries); l != 0 {
+		t.Errorf("expected inventory to have 0 items, got %v", l)
+	}
 }
 
 func assertHasOwnerReference(t *testing.T, obj metav1.Object, ownerRef metav1.OwnerReference) {

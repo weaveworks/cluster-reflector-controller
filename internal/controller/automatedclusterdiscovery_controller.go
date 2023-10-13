@@ -67,6 +67,12 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// Skip reconciliation if the AutomatedClusterDiscovery is suspended.
+	if clusterDiscovery.Spec.Suspend {
+		logger.Info("Reconciliation is suspended for this object")
+		return ctrl.Result{}, nil
+	}
+
 	logger.Info("Reconciling cluster reflector",
 		"type", clusterDiscovery.Spec.Type,
 		"name", clusterDiscovery.Spec.Name,
