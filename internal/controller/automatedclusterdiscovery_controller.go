@@ -38,7 +38,6 @@ import (
 	gitopsv1alpha1 "github.com/weaveworks/cluster-controller/api/v1alpha1"
 	clustersv1alpha1 "github.com/weaveworks/cluster-reflector-controller/api/v1alpha1"
 	"github.com/weaveworks/cluster-reflector-controller/pkg/providers"
-	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 const k8sManagedByLabel = "app.kubernetes.io/managed-by"
@@ -160,7 +159,6 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 
 		if isExistingRef(clusterRef, cd.Status.Inventory) {
 			existingClusters = append(existingClusters, clusterRef)
-			continue
 		}
 
 		logger.Info("creating gitops cluster", "name", gitopsCluster.GetName())
@@ -168,19 +166,25 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 			return inventoryResources, fmt.Errorf("failed to set ownership on created GitopsCluster: %w", err)
 		}
 		gitopsCluster.SetLabels(labelsForResource(*cd))
-		if err := r.Client.Create(ctx, gitopsCluster); err != nil {
+		_, err = controllerutil.CreateOrPatch(ctx, r.Client, gitopsCluster, func() error {
+			gitopsCluster.Spec = gitopsv1alpha1.GitopsClusterSpec{
+				SecretRef: &meta.LocalObjectReference{
+					Name: secretName,
+				},
+			}
+
+			return nil
+		})
+		if err != nil {
 			return inventoryResources, err
 		}
 
 		inventoryResources = append(inventoryResources, clusterRef)
 
-		secret, err := newKubeConfigSecret(types.NamespacedName{
+		secret := newSecret(types.NamespacedName{
 			Name:      secretName,
 			Namespace: cd.Namespace,
-		}, cluster.KubeConfig)
-		if err != nil {
-			return inventoryResources, err
-		}
+		})
 
 		secretRef, err := clustersv1alpha1.ResourceRefFromObject(secret)
 		if err != nil {
@@ -191,9 +195,18 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		if err := controllerutil.SetOwnerReference(cd, secret, r.Scheme); err != nil {
 			return inventoryResources, fmt.Errorf("failed to set ownership on created Secret: %w", err)
 		}
-		secret.SetLabels(labelsForResource(*cd))
 
-		if err := r.Client.Create(ctx, secret); err != nil {
+		secret.SetLabels(labelsForResource(*cd))
+		_, err = controllerutil.CreateOrPatch(ctx, r.Client, secret, func() error {
+			value, err := clientcmd.Write(*cluster.KubeConfig)
+			if err != nil {
+				return err
+			}
+			secret.Data["value"] = value
+
+			return nil
+		})
+		if err != nil {
 			return inventoryResources, err
 		}
 
@@ -278,24 +291,10 @@ func newGitopsCluster(secretName string, name types.NamespacedName) *gitopsv1alp
 			Name:      name.Name,
 			Namespace: name.Namespace,
 		},
-		Spec: gitopsv1alpha1.GitopsClusterSpec{
-			SecretRef: &meta.LocalObjectReference{
-				Name: secretName,
-			},
-		},
 	}
 }
 
-func newKubeConfigSecret(name types.NamespacedName, config *api.Config) (*corev1.Secret, error) {
-	value, err := clientcmd.Write(*config)
-	if err != nil {
-		return nil, err
-	}
-
-	return newSecret(name, value), nil
-}
-
-func newSecret(name types.NamespacedName, value []byte) *corev1.Secret {
+func newSecret(name types.NamespacedName) *corev1.Secret {
 	return &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
@@ -305,9 +304,7 @@ func newSecret(name types.NamespacedName, value []byte) *corev1.Secret {
 			Name:      name.Name,
 			Namespace: name.Namespace,
 		},
-		Data: map[string][]byte{
-			"value": value,
-		},
+		Data: map[string][]byte{},
 	}
 }
 
