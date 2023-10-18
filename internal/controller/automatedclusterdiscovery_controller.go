@@ -230,6 +230,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		}
 
 		for _, cluster := range clustersToDelete {
+			logger.Info("deleting gitops cluster", "name", cluster.GetName())
 			if err := r.Client.Delete(ctx, cluster); err != nil {
 				return inventoryResources, fmt.Errorf("failed to delete cluster: %w", err)
 			}

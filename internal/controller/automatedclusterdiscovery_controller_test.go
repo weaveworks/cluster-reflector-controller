@@ -421,11 +421,16 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 }
 
 type stubProvider struct {
-	response []*providers.ProviderCluster
+	response  []*providers.ProviderCluster
+	clusterID string
 }
 
 func (s *stubProvider) ListClusters(ctx context.Context) ([]*providers.ProviderCluster, error) {
 	return s.response, nil
+}
+
+func (s *stubProvider) ClusterID(ctx context.Context, kubeClient client.Reader) (string, error) {
+	return s.clusterID, nil
 }
 
 func deleteObject(t *testing.T, cl client.Client, obj client.Object) {

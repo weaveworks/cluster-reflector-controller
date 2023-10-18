@@ -25,7 +25,7 @@ type ProviderCluster struct {
 	// This is the name of the cluster as provided by the cluster service.
 	Name string
 	// This is the unique ID for this cluster.
-	UniqueID string
+	ID string
 
 	// This is the KubeConfig from the cluster service used to connect to it.
 	// This is likely to be a high privilege token.
