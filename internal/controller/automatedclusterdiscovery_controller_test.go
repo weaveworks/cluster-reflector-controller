@@ -138,7 +138,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assert.NoError(t, err)
 
 		assertInventoryHasItems(t, aksCluster,
-			newSecret(client.ObjectKeyFromObject(secret), nil),
+			newSecret(client.ObjectKeyFromObject(secret)),
 			newGitopsCluster(secret.GetName(), client.ObjectKeyFromObject(gitopsCluster)))
 
 		clusterRef := metav1.OwnerReference{
@@ -208,7 +208,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		err = k8sClient.Get(ctx, client.ObjectKeyFromObject(aksCluster), aksCluster)
 		assert.NoError(t, err)
 
-		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: "default"}, []byte(`value`))
+		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: "default"})
 		assertInventoryHasItems(t, aksCluster, secret, gitopsCluster)
 
 		testProvider.response = []*providers.ProviderCluster{}
@@ -279,7 +279,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		err = k8sClient.Get(ctx, client.ObjectKeyFromObject(aksCluster), aksCluster)
 		assert.NoError(t, err)
 
-		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: "default"}, nil)
+		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: "default"})
 		assertInventoryHasItems(t, aksCluster, secret, gitopsCluster)
 
 		cluster.KubeConfig.Clusters["cluster-1"].Server = "https://cluster-test.example.com/"
@@ -352,6 +352,72 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 
 		assertInventoryHasNoItems(t, aksCluster)
 	})
+
+	t.Run("Reconcile restores missing resources", func(t *testing.T) {
+		ctx := context.TODO()
+		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-aks",
+				Namespace: "default",
+			},
+			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
+				Type: "aks",
+				AKS: &clustersv1alpha1.AKS{
+					SubscriptionID: "subscription-123",
+				},
+				Interval: metav1.Duration{Duration: time.Minute},
+			},
+		}
+
+		err := k8sClient.Create(ctx, aksCluster)
+		assert.NoError(t, err)
+		defer deleteClusterDiscoveryAndInventory(t, k8sClient, aksCluster)
+
+		cluster := &providers.ProviderCluster{
+			Name: "cluster-1",
+			KubeConfig: &kubeconfig.Config{
+				APIVersion: "v1",
+				Clusters: map[string]*kubeconfig.Cluster{
+					"cluster-1": {
+						Server:                   "https://cluster-prod.example.com/",
+						CertificateAuthorityData: []uint8(testCAData),
+					},
+				},
+			},
+		}
+
+		testProvider := stubProvider{
+			response: []*providers.ProviderCluster{
+				cluster,
+			},
+		}
+
+		reconciler := &AutomatedClusterDiscoveryReconciler{
+			Client: k8sClient,
+			Scheme: scheme,
+			AKSProvider: func(providerID string) providers.Provider {
+				return &testProvider
+			},
+		}
+		assert.NoError(t, reconciler.SetupWithManager(mgr))
+
+		_, err = reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(aksCluster)})
+		assert.NoError(t, err)
+
+		err = k8sClient.Get(ctx, client.ObjectKeyFromObject(aksCluster), aksCluster)
+		assert.NoError(t, err)
+
+		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: aksCluster.GetNamespace()})
+		gitopsCluster := newGitopsCluster(secret.GetName(), types.NamespacedName{Name: "cluster-1", Namespace: aksCluster.GetNamespace()})
+		assertInventoryHasItems(t, aksCluster, secret, gitopsCluster)
+
+		assert.NoError(t, k8sClient.Delete(ctx, secret))
+		assert.NoError(t, k8sClient.Delete(ctx, gitopsCluster))
+
+		_, err = reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(aksCluster)})
+		assert.NoError(t, err)
+	})
+
 }
 
 type stubProvider struct {
