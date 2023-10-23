@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"github.com/fluxcd/pkg/apis/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -61,6 +62,8 @@ type AutomatedClusterDiscoverySpec struct {
 
 // AutomatedClusterDiscoveryStatus defines the observed state of AutomatedClusterDiscovery
 type AutomatedClusterDiscoveryStatus struct {
+	meta.ReconcileRequestStatus `json:",inline"`
+
 	// Inventory contains the list of Kubernetes resource object references that
 	// have been successfully applied
 	// +optional

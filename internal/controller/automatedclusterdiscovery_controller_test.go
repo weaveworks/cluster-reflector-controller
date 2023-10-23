@@ -420,6 +420,88 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 
 }
 
+func TestReconcilingWithAnnotationChange(t *testing.T) {
+	ctx := context.TODO()
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "config", "crd", "bases"),
+			"testdata/crds"},
+	}
+	cfg, err := testEnv.Start()
+	if err != nil {
+		t.Fatalf("Failed to start test environment: %v", err)
+	}
+	defer func() {
+		if err := testEnv.Stop(); err != nil {
+			t.Fatalf("Failed to stop test environment: %v", err)
+		}
+	}()
+
+	scheme := runtime.NewScheme()
+	assert.NoError(t, clustersv1alpha1.AddToScheme(scheme))
+	assert.NoError(t, gitopsv1alpha1.AddToScheme(scheme))
+	assert.NoError(t, clientgoscheme.AddToScheme(scheme))
+
+	k8sClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	assert.NoError(t, err)
+
+	mgr, err := manager.New(cfg, manager.Options{
+		Scheme: scheme,
+	})
+	assert.NoError(t, err)
+
+	aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-aks",
+			Namespace: "default",
+		},
+		Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
+			Type: "aks",
+			AKS: &clustersv1alpha1.AKS{
+				SubscriptionID: "subscription-123",
+			},
+			Interval: metav1.Duration{Duration: time.Minute},
+		},
+	}
+
+	err = k8sClient.Create(ctx, aksCluster)
+	assert.NoError(t, err)
+	defer deleteClusterDiscoveryAndInventory(t, k8sClient, aksCluster)
+
+	reconciler := &AutomatedClusterDiscoveryReconciler{
+		Client: k8sClient,
+		Scheme: scheme,
+		AKSProvider: func(providerID string) providers.Provider {
+			return &stubProvider{}
+		},
+	}
+	assert.NoError(t, reconciler.SetupWithManager(mgr))
+
+	key := types.NamespacedName{Name: aksCluster.Name, Namespace: aksCluster.Namespace}
+	_, err = reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
+	assert.NoError(t, err)
+
+	err = k8sClient.Get(ctx, client.ObjectKeyFromObject(aksCluster), aksCluster)
+	assert.NoError(t, err)
+
+	assert.Equal(t, aksCluster.Status.LastHandledReconcileAt, "")
+
+	// add an annotation
+	aksCluster.Annotations = map[string]string{
+		meta.ReconcileRequestAnnotation: "testing",
+	}
+	err = k8sClient.Update(ctx, aksCluster)
+	assert.NoError(t, err)
+
+	_, err = reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
+	assert.NoError(t, err)
+
+	err = k8sClient.Get(ctx, client.ObjectKeyFromObject(aksCluster), aksCluster)
+	assert.NoError(t, err)
+	assert.Equal(t, "testing", aksCluster.Annotations[meta.ReconcileRequestAnnotation])
+	assert.Equal(t, aksCluster.Status.LastHandledReconcileAt, "testing")
+}
+
 type stubProvider struct {
 	response []*providers.ProviderCluster
 }

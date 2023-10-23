@@ -22,6 +22,11 @@ import (
 	"sort"
 	"time"
 
+	"github.com/fluxcd/pkg/apis/meta"
+	"github.com/fluxcd/pkg/runtime/predicates"
+	gitopsv1alpha1 "github.com/weaveworks/cluster-controller/api/v1alpha1"
+	clustersv1alpha1 "github.com/weaveworks/cluster-reflector-controller/api/v1alpha1"
+	"github.com/weaveworks/cluster-reflector-controller/pkg/providers"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -30,14 +35,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/cli-utils/pkg/object"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	"github.com/fluxcd/pkg/apis/meta"
-	gitopsv1alpha1 "github.com/weaveworks/cluster-controller/api/v1alpha1"
-	clustersv1alpha1 "github.com/weaveworks/cluster-reflector-controller/api/v1alpha1"
-	"github.com/weaveworks/cluster-reflector-controller/pkg/providers"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 const k8sManagedByLabel = "app.kubernetes.io/managed-by"
@@ -76,6 +78,11 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 		"type", clusterDiscovery.Spec.Type,
 		"name", clusterDiscovery.Spec.Name,
 	)
+
+	// Set the value of the reconciliation request in status.
+	if v, ok := meta.ReconcileAnnotationValue(clusterDiscovery.GetAnnotations()); ok {
+		clusterDiscovery.Status.LastHandledReconcileAt = v
+	}
 
 	if clusterDiscovery.Spec.Type == "aks" {
 		logger.Info("Reconciling AKS cluster reflector",
@@ -117,7 +124,8 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 // SetupWithManager sets up the controller with the Manager.
 func (r *AutomatedClusterDiscoveryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&clustersv1alpha1.AutomatedClusterDiscovery{}).
+		For(&clustersv1alpha1.AutomatedClusterDiscovery{}, builder.WithPredicates(
+			predicate.Or(predicate.GenerationChangedPredicate{}, predicates.ReconcileRequestedPredicate{}))).
 		Complete(r)
 }
 
