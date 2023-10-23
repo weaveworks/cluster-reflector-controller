@@ -178,7 +178,7 @@ $(HELMIFY): $(LOCALBIN)
 
 .PHONY: helm
 helm: manifests kustomize helmify
-	$(KUSTOMIZE) build config/default | $(HELMIFY) -crd-dir ../weave-gitops-enterprise/charts/cluster-reflector-controller
+	$(KUSTOMIZE) build config/default | $(HELMIFY) -crd-dir charts/cluster-reflector-controller
 
 .PHONY: helm-chart
 helm-chart: manifests kustomize helmify
