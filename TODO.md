@@ -5,6 +5,8 @@ Steps before release of the AKS reflector
 - [X] Add managed-by labels!
 - [ ] Conditions - ready with count of reflected clusters
 - [ ] Events - publish when cluster created or removed
-- [ ] Suspension
+- [X] Suspension
 - [ ] Manually triggered reconciliation
 - [ ] Provide for authentication via a Secret?
+- [ ] CommonLabels support
+- [ ] ObservedGeneration support!
