@@ -102,7 +102,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 
 		ctx := context.TODO()
 		key := types.NamespacedName{Name: aksCluster.Name, Namespace: aksCluster.Namespace}
-		err = mgr.GetClient().Create(ctx, aksCluster)
+		err = k8sClient.Create(ctx, aksCluster)
 		assert.NoError(t, err)
 		defer deleteClusterDiscoveryAndInventory(t, k8sClient, aksCluster)
 
@@ -149,6 +149,70 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 		assertHasOwnerReference(t, gitopsCluster, clusterRef)
 		assertHasOwnerReference(t, secret, clusterRef)
+	})
+
+	t.Run("Reconcile when executing in cluster and cluster matches reflector cluster", func(t *testing.T) {
+		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-aks",
+				Namespace: "default",
+			},
+			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
+				Type: "aks",
+				AKS: &clustersv1alpha1.AKS{
+					SubscriptionID: "subscription-123",
+				},
+				Interval: metav1.Duration{Duration: time.Minute},
+			},
+		}
+		testClusterID := "/subscriptions/ace37984-aaaa-1234-1234-a1a12c0ae14b/resourcegroups/team-pesto-use1/providers/Microsoft.ContainerService/managedClusters/test-cluster"
+
+		testProvider := stubProvider{
+			clusterID: testClusterID,
+			response: []*providers.ProviderCluster{
+				{
+					Name: "test-cluster",
+					ID:   testClusterID,
+					KubeConfig: &kubeconfig.Config{
+						APIVersion: "v1",
+						Clusters: map[string]*kubeconfig.Cluster{
+							"test-cluster": {
+								Server:                   "https://cluster-prod.example.com/",
+								CertificateAuthorityData: []uint8(testCAData),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		reconciler := &AutomatedClusterDiscoveryReconciler{
+			Client: k8sClient,
+			Scheme: scheme,
+			AKSProvider: func(providerID string) providers.Provider {
+				return &testProvider
+			},
+		}
+
+		assert.NoError(t, reconciler.SetupWithManager(mgr))
+
+		ctx := context.TODO()
+		key := types.NamespacedName{Name: aksCluster.Name, Namespace: aksCluster.Namespace}
+		err = k8sClient.Create(ctx, aksCluster)
+		assert.NoError(t, err)
+		defer deleteClusterDiscoveryAndInventory(t, k8sClient, aksCluster)
+
+		result, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
+		assert.NoError(t, err)
+		assert.Equal(t, ctrl.Result{RequeueAfter: time.Minute}, result)
+
+		gitopsCluster := &gitopsv1alpha1.GitopsCluster{}
+		err = k8sClient.Get(ctx, types.NamespacedName{Name: "test-cluster", Namespace: aksCluster.Namespace}, gitopsCluster)
+		assert.True(t, apierrors.IsNotFound(err))
+
+		secret := &corev1.Secret{}
+		err = k8sClient.Get(ctx, types.NamespacedName{Name: "test-cluster-kubeconfig", Namespace: aksCluster.Namespace}, secret)
+		assert.True(t, apierrors.IsNotFound(err))
 	})
 
 	t.Run("Reconcile when cluster has been removed from AKS", func(t *testing.T) {
@@ -294,7 +358,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, value, secret.Data["value"])
 	})
-	t.Run("test suspend option", func(t *testing.T) {
+	t.Run("Reconcile suspended cluster discovery resource", func(t *testing.T) {
 		ctx := context.TODO()
 		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
 			ObjectMeta: metav1.ObjectMeta{
@@ -339,7 +403,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
 
 		key := types.NamespacedName{Name: aksCluster.Name, Namespace: aksCluster.Namespace}
-		err = mgr.GetClient().Create(ctx, aksCluster)
+		err = k8sClient.Create(ctx, aksCluster)
 		assert.NoError(t, err)
 		defer deleteObject(t, k8sClient, aksCluster)
 
@@ -417,15 +481,19 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		_, err = reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(aksCluster)})
 		assert.NoError(t, err)
 	})
-
 }
 
 type stubProvider struct {
-	response []*providers.ProviderCluster
+	response  []*providers.ProviderCluster
+	clusterID string
 }
 
 func (s *stubProvider) ListClusters(ctx context.Context) ([]*providers.ProviderCluster, error) {
 	return s.response, nil
+}
+
+func (s *stubProvider) ClusterID(ctx context.Context, kubeClient client.Reader) (string, error) {
+	return s.clusterID, nil
 }
 
 func deleteObject(t *testing.T, cl client.Client, obj client.Object) {
@@ -439,14 +507,16 @@ func deleteClusterDiscoveryAndInventory(t *testing.T, cl client.Client, cd *clus
 	t.Helper()
 	ctx := context.TODO()
 
-	for _, v := range cd.Status.Inventory.Entries {
-		u, err := unstructuredFromResourceRef(v)
-		if err != nil {
-			t.Errorf("failed to convert unstructured from %s", v)
-			continue
-		}
-		if err := client.IgnoreNotFound(cl.Delete(ctx, u)); err != nil {
-			t.Errorf("failed to delete %v: %s", u, err)
+	if cd.Status.Inventory != nil {
+		for _, v := range cd.Status.Inventory.Entries {
+			u, err := unstructuredFromResourceRef(v)
+			if err != nil {
+				t.Errorf("failed to convert unstructured from %s", v)
+				continue
+			}
+			if err := client.IgnoreNotFound(cl.Delete(ctx, u)); err != nil {
+				t.Errorf("failed to delete %v: %s", u, err)
+			}
 		}
 	}
 

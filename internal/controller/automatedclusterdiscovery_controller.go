@@ -68,29 +68,39 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 
 	// Skip reconciliation if the AutomatedClusterDiscovery is suspended.
 	if clusterDiscovery.Spec.Suspend {
-		logger.Info("Reconciliation is suspended for this object")
+		logger.Info("reconciliation is suspended for this object")
 		return ctrl.Result{}, nil
 	}
 
-	logger.Info("Reconciling cluster reflector",
+	logger.Info("reconciling cluster reflector",
 		"type", clusterDiscovery.Spec.Type,
 		"name", clusterDiscovery.Spec.Name,
 	)
 
 	if clusterDiscovery.Spec.Type == "aks" {
-		logger.Info("Reconciling AKS cluster reflector",
+		logger.Info("reconciling AKS cluster reflector",
 			"name", clusterDiscovery.Spec.Name,
 		)
 
 		azureProvider := r.AKSProvider(clusterDiscovery.Spec.AKS.SubscriptionID)
 
+		// We get the clusters and cluster ID separately so that we can return
+		// the error from the Reconciler without touching the inventory.
 		clusters, err := azureProvider.ListClusters(ctx)
 		if err != nil {
-			logger.Error(err, "Failed to list AKS clusters")
+			logger.Error(err, "failed to list AKS clusters")
 			return ctrl.Result{}, err
 		}
 
-		inventoryRefs, err := r.reconcileClusters(ctx, clusters, clusterDiscovery)
+		clusterID, err := azureProvider.ClusterID(ctx, r.Client)
+		if err != nil {
+			logger.Error(err, "failed to list get Cluster ID from AKS cluster")
+			return ctrl.Result{}, err
+		}
+
+		// TODO: Fix this so that we record the inventoryRefs even if we get an
+		// error.
+		inventoryRefs, err := r.reconcileClusters(ctx, clusters, clusterID, clusterDiscovery)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -121,7 +131,7 @@ func (r *AutomatedClusterDiscoveryReconciler) SetupWithManager(mgr ctrl.Manager)
 		Complete(r)
 }
 
-func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Context, clusters []*providers.ProviderCluster, cd *clustersv1alpha1.AutomatedClusterDiscovery) ([]clustersv1alpha1.ResourceRef, error) {
+func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Context, clusters []*providers.ProviderCluster, currentClusterID string, cd *clustersv1alpha1.AutomatedClusterDiscovery) ([]clustersv1alpha1.ResourceRef, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("reconciling clusters", "count", len(clusters))
 
@@ -145,6 +155,10 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 	inventoryResources := []clustersv1alpha1.ResourceRef{}
 
 	for _, cluster := range clusters {
+		if currentClusterID != "" && currentClusterID == cluster.ID {
+			logger.Info("skipping current cluster")
+			continue
+		}
 		secretName := fmt.Sprintf("%s-kubeconfig", cluster.Name)
 
 		gitopsCluster := newGitopsCluster(secretName, types.NamespacedName{
@@ -230,6 +244,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		}
 
 		for _, cluster := range clustersToDelete {
+			logger.Info("deleting gitops cluster", "name", cluster.GetName())
 			if err := r.Client.Delete(ctx, cluster); err != nil {
 				return inventoryResources, fmt.Errorf("failed to delete cluster: %w", err)
 			}
