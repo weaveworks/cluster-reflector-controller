@@ -72,6 +72,10 @@ spec:
         - --leader-elect
         image: controller:latest
         name: manager
+        envFrom:
+        - secretRef:
+            name: provider-credentials
+            optional: true
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
