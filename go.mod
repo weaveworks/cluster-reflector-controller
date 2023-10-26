@@ -8,6 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v4 v4.3.0
 	github.com/Azure/go-autorest/autorest v0.11.29
 	github.com/fluxcd/pkg/apis/meta v1.1.2
+	github.com/fluxcd/pkg/runtime v0.35.0
 	github.com/google/go-cmp v0.5.9
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
