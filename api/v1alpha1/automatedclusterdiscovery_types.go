@@ -64,7 +64,7 @@ type AutomatedClusterDiscoverySpec struct {
 type AutomatedClusterDiscoveryStatus struct {
 	meta.ReconcileRequestStatus `json:",inline"`
 
-	// ObservedGeneration is the last observed generation of the HelmRepository
+	// ObservedGeneration is the last observed generation of the
 	// object.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
