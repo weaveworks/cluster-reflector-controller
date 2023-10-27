@@ -97,12 +97,24 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 		clusters, err := azureProvider.ListClusters(ctx)
 		if err != nil {
 			logger.Error(err, "failed to list AKS clusters")
+
+			clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, nil, metav1.ConditionFalse, clustersv1alpha1.ReconciliationFailedReason, err.Error())
+			if err := r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
+				logger.Error(err, "failed to reconcile")
+			}
+
 			return ctrl.Result{}, err
 		}
 
 		clusterID, err := azureProvider.ClusterID(ctx, r.Client)
 		if err != nil {
 			logger.Error(err, "failed to list get Cluster ID from AKS cluster")
+
+			clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, nil, metav1.ConditionFalse, clustersv1alpha1.ReconciliationFailedReason, err.Error())
+			if err := r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
+				logger.Error(err, "failed to reconcile")
+			}
+
 			return ctrl.Result{}, err
 		}
 
@@ -110,6 +122,13 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 		// error.
 		inventoryRefs, err := r.reconcileClusters(ctx, clusters, clusterID, clusterDiscovery)
 		if err != nil {
+			logger.Error(err, "failed to reconcile clusters")
+
+			clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, nil, metav1.ConditionFalse, clustersv1alpha1.ReconciliationFailedReason, err.Error())
+			if err := r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
+				logger.Error(err, "failed to reconcile")
+			}
+
 			return ctrl.Result{}, err
 		}
 
@@ -119,8 +138,25 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 
 		clusterDiscovery.Status.Inventory = &clustersv1alpha1.ResourceInventory{Entries: inventoryRefs}
 
+		clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, clusterDiscovery.Status.Inventory, metav1.ConditionTrue, clustersv1alpha1.ReconciliationSucceededReason, "reconciliation completed successfully")
+
 		if err = r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
+			logger.Error(err, "failed to reconcile")
+			clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, nil, metav1.ConditionFalse, clustersv1alpha1.ReconciliationFailedReason, err.Error())
+
 			return ctrl.Result{}, err
+		}
+
+		if inventoryRefs != nil {
+			logger.Info("reconciled clusters", "count", len(inventoryRefs))
+			clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, clusterDiscovery.Status.Inventory, metav1.ConditionTrue, clustersv1alpha1.ReconciliationSucceededReason,
+				fmt.Sprintf("%d resources found", len(inventoryRefs)))
+
+			if err = r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
+				return ctrl.Result{}, err
+			}
+		} else {
+			logger.Info("no clusters to reconcile")
 		}
 	}
 

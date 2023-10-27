@@ -64,6 +64,15 @@ type AutomatedClusterDiscoverySpec struct {
 type AutomatedClusterDiscoveryStatus struct {
 	meta.ReconcileRequestStatus `json:",inline"`
 
+	// ObservedGeneration is the last observed generation of the HelmRepository
+	// object.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// Conditions holds the conditions for the AutomatedClusterDiscovery
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
 	// Inventory contains the list of Kubernetes resource object references that
 	// have been successfully applied
 	// +optional
@@ -72,6 +81,8 @@ type AutomatedClusterDiscoveryStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description=""
+//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].message",description=""
 
 // AutomatedClusterDiscovery is the Schema for the automatedclusterdiscoveries API
 type AutomatedClusterDiscovery struct {
