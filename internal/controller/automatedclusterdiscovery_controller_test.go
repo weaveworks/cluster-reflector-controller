@@ -153,6 +153,91 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assertHasOwnerReference(t, secret, clusterRef)
 	})
 
+	t.Run("Reconcile with common labels and annotations", func(t *testing.T) {
+		wantAnnotations := map[string]string{
+			"test.example.com/annotation": "test",
+			"example.com/test":            "annotation",
+		}
+
+		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-aks",
+				Namespace: "default",
+			},
+			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
+				Type: "aks",
+				AKS: &clustersv1alpha1.AKS{
+					SubscriptionID: "subscription-123",
+				},
+				Interval: metav1.Duration{Duration: time.Minute},
+				CommonLabels: map[string]string{
+					"example.com/label": "test",
+				},
+				CommonAnnotations: wantAnnotations,
+			},
+		}
+
+		testProvider := stubProvider{
+			response: []*providers.ProviderCluster{
+				{
+					Name: "cluster-1",
+					KubeConfig: &kubeconfig.Config{
+						APIVersion: "v1",
+						Clusters: map[string]*kubeconfig.Cluster{
+							"cluster-1": {
+								Server:                   "https://cluster-prod.example.com/",
+								CertificateAuthorityData: []uint8(testCAData),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		reconciler := &AutomatedClusterDiscoveryReconciler{
+			Client: k8sClient,
+			Scheme: scheme,
+			AKSProvider: func(providerID string) providers.Provider {
+				return &testProvider
+			},
+		}
+
+		assert.NoError(t, reconciler.SetupWithManager(mgr))
+
+		ctx := context.TODO()
+		key := types.NamespacedName{Name: aksCluster.Name, Namespace: aksCluster.Namespace}
+		err = k8sClient.Create(ctx, aksCluster)
+		assert.NoError(t, err)
+		defer deleteClusterDiscoveryAndInventory(t, k8sClient, aksCluster)
+
+		result, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
+		assert.NoError(t, err)
+		assert.Equal(t, ctrl.Result{RequeueAfter: time.Minute}, result)
+
+		wantLabels := map[string]string{
+			"app.kubernetes.io/managed-by":          "cluster-reflector-controller",
+			"clusters.weave.works/origin-name":      "test-aks",
+			"clusters.weave.works/origin-namespace": "default",
+			"clusters.weave.works/origin-type":      "aks",
+			"example.com/label":                     "test",
+		}
+
+		gitopsCluster := &gitopsv1alpha1.GitopsCluster{}
+		err = k8sClient.Get(ctx, types.NamespacedName{Name: "cluster-1", Namespace: aksCluster.Namespace}, gitopsCluster)
+		assert.NoError(t, err)
+		assert.Equal(t, gitopsv1alpha1.GitopsClusterSpec{
+			SecretRef: &meta.LocalObjectReference{Name: "cluster-1-kubeconfig"},
+		}, gitopsCluster.Spec)
+		assertHasLabels(t, gitopsCluster, wantLabels)
+		assertHasAnnotations(t, gitopsCluster, wantAnnotations)
+
+		secret := &corev1.Secret{}
+		err = k8sClient.Get(ctx, types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: aksCluster.Namespace}, secret)
+		assert.NoError(t, err)
+		assertHasLabels(t, secret, wantLabels)
+		assertHasAnnotations(t, secret, wantAnnotations)
+	})
+
 	t.Run("Reconcile when executing in cluster and cluster matches reflector cluster", func(t *testing.T) {
 		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
 			ObjectMeta: metav1.ObjectMeta{
@@ -362,6 +447,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, value, secret.Data["value"])
 	})
+
 	t.Run("Reconcile suspended cluster discovery resource", func(t *testing.T) {
 		ctx := context.TODO()
 		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
@@ -739,6 +825,18 @@ func assertHasLabels(t *testing.T, o client.Object, want map[string]string) {
 		kv, ok := labels[k]
 		if !ok {
 			t.Errorf("%s %s/%s is missing label %q with value %q", o.GetObjectKind().GroupVersionKind().Kind, o.GetNamespace(), o.GetName(), k, v)
+			continue
+		}
+		assert.Equal(t, v, kv)
+	}
+}
+
+func assertHasAnnotations(t *testing.T, o client.Object, want map[string]string) {
+	annotations := o.GetAnnotations()
+	for k, v := range want {
+		kv, ok := annotations[k]
+		if !ok {
+			t.Errorf("%s %s/%s is missing annotation %q with value %q", o.GetObjectKind().GroupVersionKind().Kind, o.GetNamespace(), o.GetName(), k, v)
 			continue
 		}
 		assert.Equal(t, v, kv)
