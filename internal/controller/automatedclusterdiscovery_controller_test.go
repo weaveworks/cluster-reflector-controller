@@ -141,7 +141,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assertInventoryHasItems(t, aksCluster,
 			newSecret(client.ObjectKeyFromObject(secret)),
 			newGitopsCluster(secret.GetName(), client.ObjectKeyFromObject(gitopsCluster)))
-		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "2 resources found")
+		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "2 resources created")
 
 		clusterRef := metav1.OwnerReference{
 			Kind:       "AutomatedClusterDiscovery",
@@ -276,7 +276,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 
 		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: "default"})
 		assertInventoryHasItems(t, aksCluster, secret, gitopsCluster)
-		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "2 resources found")
+		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "2 resources created")
 
 		testProvider.response = []*providers.ProviderCluster{}
 
@@ -348,7 +348,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 
 		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: "default"})
 		assertInventoryHasItems(t, aksCluster, secret, gitopsCluster)
-		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "2 resources found")
+		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "2 resources created")
 
 		cluster.KubeConfig.Clusters["cluster-1"].Server = "https://cluster-test.example.com/"
 
@@ -478,7 +478,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: aksCluster.GetNamespace()})
 		gitopsCluster := newGitopsCluster(secret.GetName(), types.NamespacedName{Name: "cluster-1", Namespace: aksCluster.GetNamespace()})
 		assertInventoryHasItems(t, aksCluster, secret, gitopsCluster)
-		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "2 resources found")
+		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "2 resources created")
 
 		assert.NoError(t, k8sClient.Delete(ctx, secret))
 		assert.NoError(t, k8sClient.Delete(ctx, gitopsCluster))

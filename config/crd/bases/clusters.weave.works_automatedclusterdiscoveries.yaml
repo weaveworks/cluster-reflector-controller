@@ -187,7 +187,7 @@ spec:
                 type: string
               observedGeneration:
                 description: ObservedGeneration is the last observed generation of
-                  the HelmRepository object.
+                  the object.
                 format: int64
                 type: integer
             type: object

@@ -85,79 +85,29 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 		clusterDiscovery.Status.LastHandledReconcileAt = v
 	}
 
-	if clusterDiscovery.Spec.Type == "aks" {
-		logger.Info("reconciling AKS cluster reflector",
-			"name", clusterDiscovery.Spec.Name,
-		)
+	inventoryRefs, err := r.reconcileResources(ctx, clusterDiscovery)
+	if err != nil {
+		clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, clusterDiscovery.Status.Inventory, metav1.ConditionFalse, clustersv1alpha1.ReconciliationFailedReason, err.Error())
 
-		azureProvider := r.AKSProvider(clusterDiscovery.Spec.AKS.SubscriptionID)
-
-		// We get the clusters and cluster ID separately so that we can return
-		// the error from the Reconciler without touching the inventory.
-		clusters, err := azureProvider.ListClusters(ctx)
-		if err != nil {
-			logger.Error(err, "failed to list AKS clusters")
-
-			clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, nil, metav1.ConditionFalse, clustersv1alpha1.ReconciliationFailedReason, err.Error())
-			if err := r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
-				logger.Error(err, "failed to reconcile")
-			}
-
+		if err := r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
 			return ctrl.Result{}, err
 		}
 
-		clusterID, err := azureProvider.ClusterID(ctx, r.Client)
-		if err != nil {
-			logger.Error(err, "failed to list get Cluster ID from AKS cluster")
+		return ctrl.Result{}, err
+	}
 
-			clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, nil, metav1.ConditionFalse, clustersv1alpha1.ReconciliationFailedReason, err.Error())
-			if err := r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
-				logger.Error(err, "failed to reconcile")
-			}
+	clusterDiscovery.Status.Inventory = &clustersv1alpha1.ResourceInventory{Entries: inventoryRefs}
 
-			return ctrl.Result{}, err
-		}
-
-		// TODO: Fix this so that we record the inventoryRefs even if we get an
-		// error.
-		inventoryRefs, err := r.reconcileClusters(ctx, clusters, clusterID, clusterDiscovery)
-		if err != nil {
-			logger.Error(err, "failed to reconcile clusters")
-
-			clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, nil, metav1.ConditionFalse, clustersv1alpha1.ReconciliationFailedReason, err.Error())
-			if err := r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
-				logger.Error(err, "failed to reconcile")
-			}
-
-			return ctrl.Result{}, err
-		}
-
-		sort.Slice(inventoryRefs, func(i, j int) bool {
-			return inventoryRefs[i].ID < inventoryRefs[j].ID
-		})
-
-		clusterDiscovery.Status.Inventory = &clustersv1alpha1.ResourceInventory{Entries: inventoryRefs}
-
-		clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, clusterDiscovery.Status.Inventory, metav1.ConditionTrue, clustersv1alpha1.ReconciliationSucceededReason, "reconciliation completed successfully")
+	if inventoryRefs != nil {
+		logger.Info("reconciled clusters", "count", len(inventoryRefs))
+		clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, clusterDiscovery.Status.Inventory, metav1.ConditionTrue, clustersv1alpha1.ReconciliationSucceededReason,
+			fmt.Sprintf("%d resources created", len(inventoryRefs)))
 
 		if err = r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
-			logger.Error(err, "failed to reconcile")
-			clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, nil, metav1.ConditionFalse, clustersv1alpha1.ReconciliationFailedReason, err.Error())
-
 			return ctrl.Result{}, err
 		}
-
-		if inventoryRefs != nil {
-			logger.Info("reconciled clusters", "count", len(inventoryRefs))
-			clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, clusterDiscovery.Status.Inventory, metav1.ConditionTrue, clustersv1alpha1.ReconciliationSucceededReason,
-				fmt.Sprintf("%d resources found", len(inventoryRefs)))
-
-			if err = r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
-				return ctrl.Result{}, err
-			}
-		} else {
-			logger.Info("no clusters to reconcile")
-		}
+	} else {
+		logger.Info("no clusters to reconcile")
 	}
 
 	interval := clusterDiscovery.Spec.Interval
@@ -166,6 +116,52 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 	}
 
 	return ctrl.Result{RequeueAfter: interval.Duration}, nil
+}
+
+func (r *AutomatedClusterDiscoveryReconciler) reconcileResources(ctx context.Context, cd *clustersv1alpha1.AutomatedClusterDiscovery) ([]clustersv1alpha1.ResourceRef, error) {
+	logger := log.FromContext(ctx)
+
+	var err error
+	clusters, clusterID := []*providers.ProviderCluster{}, ""
+
+	if cd.Spec.Type == "aks" {
+		logger.Info("reconciling AKS cluster reflector",
+			"name", cd.Spec.Name,
+		)
+
+		azureProvider := r.AKSProvider(cd.Spec.AKS.SubscriptionID)
+
+		// We get the clusters and cluster ID separately so that we can return
+		// the error from the Reconciler without touching the inventory.
+		clusters, err = azureProvider.ListClusters(ctx)
+		if err != nil {
+			logger.Error(err, "failed to list AKS clusters")
+
+			return nil, err
+		}
+
+		clusterID, err = azureProvider.ClusterID(ctx, r.Client)
+		if err != nil {
+			logger.Error(err, "failed to list get Cluster ID from AKS cluster")
+
+			return nil, err
+		}
+	}
+
+	// TODO: Fix this so that we record the inventoryRefs even if we get an
+	// error.
+	inventoryRefs, err := r.reconcileClusters(ctx, clusters, clusterID, cd)
+	if err != nil {
+		logger.Error(err, "failed to reconcile clusters")
+
+		return nil, err
+	}
+
+	sort.Slice(inventoryRefs, func(i, j int) bool {
+		return inventoryRefs[i].ID < inventoryRefs[j].ID
+	})
+
+	return inventoryRefs, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
