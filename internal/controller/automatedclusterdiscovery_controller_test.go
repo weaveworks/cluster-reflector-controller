@@ -96,6 +96,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			AKSProvider: func(providerID string) providers.Provider {
 				return &testProvider
 			},
+			EventRecorder: &mockEventRecorder{},
 		}
 
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
@@ -192,6 +193,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			AKSProvider: func(providerID string) providers.Provider {
 				return &testProvider
 			},
+			EventRecorder: &mockEventRecorder{},
 		}
 
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
@@ -263,6 +265,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			AKSProvider: func(providerID string) providers.Provider {
 				return &testProvider
 			},
+			EventRecorder: &mockEventRecorder{},
 		}
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
 
@@ -334,6 +337,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			AKSProvider: func(providerID string) providers.Provider {
 				return &testProvider
 			},
+			EventRecorder: &mockEventRecorder{},
 		}
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
 
@@ -398,6 +402,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			AKSProvider: func(providerID string) providers.Provider {
 				return &testProvider
 			},
+			EventRecorder: &mockEventRecorder{},
 		}
 
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
@@ -462,6 +467,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			AKSProvider: func(providerID string) providers.Provider {
 				return &testProvider
 			},
+			EventRecorder: &mockEventRecorder{},
 		}
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
 
@@ -537,6 +543,7 @@ func TestReconcilingWithAnnotationChange(t *testing.T) {
 		AKSProvider: func(providerID string) providers.Provider {
 			return &stubProvider{}
 		},
+		EventRecorder: &mockEventRecorder{},
 	}
 	assert.NoError(t, reconciler.SetupWithManager(mgr))
 
@@ -563,6 +570,40 @@ func TestReconcilingWithAnnotationChange(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "testing", aksCluster.Annotations[meta.ReconcileRequestAnnotation])
 	assert.Equal(t, aksCluster.Status.LastHandledReconcileAt, "testing")
+}
+
+func TestEvent(t *testing.T) {
+	mockEventRecorder := &mockEventRecorder{}
+
+	reconciler := &AutomatedClusterDiscoveryReconciler{
+		EventRecorder: mockEventRecorder,
+	}
+
+	obj := &clustersv1alpha1.AutomatedClusterDiscovery{}
+	eventtype := "Normal"
+	reason := "TestReason"
+	message := "TestMessage"
+
+	reconciler.event(obj, eventtype, reason, message)
+
+	assert.Equal(t, mockEventRecorder.CapturedObj, obj)
+	assert.Equal(t, mockEventRecorder.CapturedType, eventtype)
+	assert.Equal(t, mockEventRecorder.CapturedReason, reason)
+	assert.Equal(t, mockEventRecorder.CapturedMessage, message)
+}
+
+type mockEventRecorder struct {
+	CapturedObj     runtime.Object
+	CapturedType    string
+	CapturedReason  string
+	CapturedMessage string
+}
+
+func (m *mockEventRecorder) Event(object runtime.Object, eventtype, reason, message string) {
+	m.CapturedObj = object
+	m.CapturedType = eventtype
+	m.CapturedReason = reason
+	m.CapturedMessage = message
 }
 
 type stubProvider struct {
