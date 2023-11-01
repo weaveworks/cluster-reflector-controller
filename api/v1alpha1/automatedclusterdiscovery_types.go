@@ -89,7 +89,8 @@ type AutomatedClusterDiscovery struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AutomatedClusterDiscoverySpec   `json:"spec,omitempty"`
+	Spec AutomatedClusterDiscoverySpec `json:"spec,omitempty"`
+	// +kubebuilder:default={"observedGeneration":-1}
 	Status AutomatedClusterDiscoveryStatus `json:"status,omitempty"`
 }
 
