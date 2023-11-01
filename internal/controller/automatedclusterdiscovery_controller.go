@@ -98,10 +98,23 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 
 	clusterDiscovery.Status.Inventory = &clustersv1alpha1.ResourceInventory{Entries: inventoryRefs}
 
+	// Get number of clusters in inventory
+	clusters := 0
+	for _, item := range inventoryRefs {
+		objMeta, err := object.ParseObjMetadata(item.ID)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to parse object ID %s: %w", item.ID, err)
+		}
+
+		if objMeta.GroupKind.Kind == "GitopsCluster" {
+			clusters++
+		}
+	}
+
 	if inventoryRefs != nil {
 		logger.Info("reconciled clusters", "count", len(inventoryRefs))
 		clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, clusterDiscovery.Status.Inventory, metav1.ConditionTrue, clustersv1alpha1.ReconciliationSucceededReason,
-			fmt.Sprintf("%d resources created", len(inventoryRefs)))
+			fmt.Sprintf("%d clusters discovered", clusters))
 
 		if err = r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
 			return ctrl.Result{}, err
