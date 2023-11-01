@@ -83,6 +83,9 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 	// Set the value of the reconciliation request in status.
 	if v, ok := meta.ReconcileAnnotationValue(clusterDiscovery.GetAnnotations()); ok {
 		clusterDiscovery.Status.LastHandledReconcileAt = v
+		if err := r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	if clusterDiscovery.Spec.Type == "aks" {
