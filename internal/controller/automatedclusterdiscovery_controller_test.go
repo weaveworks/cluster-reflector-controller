@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -140,6 +141,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assertInventoryHasItems(t, aksCluster,
 			newSecret(client.ObjectKeyFromObject(secret)),
 			newGitopsCluster(secret.GetName(), client.ObjectKeyFromObject(gitopsCluster)))
+		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "1 clusters discovered")
 
 		clusterRef := metav1.OwnerReference{
 			Kind:       "AutomatedClusterDiscovery",
@@ -274,6 +276,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 
 		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: "default"})
 		assertInventoryHasItems(t, aksCluster, secret, gitopsCluster)
+		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "1 clusters discovered")
 
 		testProvider.response = []*providers.ProviderCluster{}
 
@@ -345,6 +348,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 
 		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: "default"})
 		assertInventoryHasItems(t, aksCluster, secret, gitopsCluster)
+		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "1 clusters discovered")
 
 		cluster.KubeConfig.Clusters["cluster-1"].Server = "https://cluster-test.example.com/"
 
@@ -474,6 +478,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: aksCluster.GetNamespace()})
 		gitopsCluster := newGitopsCluster(secret.GetName(), types.NamespacedName{Name: "cluster-1", Namespace: aksCluster.GetNamespace()})
 		assertInventoryHasItems(t, aksCluster, secret, gitopsCluster)
+		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "1 clusters discovered")
 
 		assert.NoError(t, k8sClient.Delete(ctx, secret))
 		assert.NoError(t, k8sClient.Delete(ctx, gitopsCluster))
@@ -675,6 +680,17 @@ func deleteClusterDiscoveryAndInventory(t *testing.T, cl client.Client, cd *clus
 
 	if err := cl.Delete(ctx, cd); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func assertAutomatedClusterDiscoveryCondition(t *testing.T, acd *clustersv1alpha1.AutomatedClusterDiscovery, condType, msg string) {
+	t.Helper()
+	cond := apimeta.FindStatusCondition(acd.Status.Conditions, condType)
+	if cond == nil {
+		t.Fatalf("failed to find matching status condition for type %s in %#v", condType, acd.Status.Conditions)
+	}
+	if cond.Message != msg {
+		t.Fatalf("got %s, want %s", cond.Message, msg)
 	}
 }
 
