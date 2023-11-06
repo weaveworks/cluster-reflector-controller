@@ -248,7 +248,13 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		if err := controllerutil.SetOwnerReference(acd, gitopsCluster, r.Scheme); err != nil {
 			return inventoryResources, fmt.Errorf("failed to set ownership on created GitopsCluster: %w", err)
 		}
-		gitopsCluster.SetLabels(labelsForResource(*acd))
+
+		clusterLabels := labelsForResource(*acd)
+		if !acd.Spec.DisableTags {
+			clusterLabels = mergeMaps(cluster.Labels, clusterLabels)
+		}
+
+		gitopsCluster.SetLabels(clusterLabels)
 
 		gitopsCluster.SetAnnotations(mergeMaps(acd.Spec.CommonAnnotations, map[string]string{
 			gitopsv1alpha1.GitOpsClusterNoSecretFinalizerAnnotation: "true",
@@ -359,7 +365,6 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		if err := r.Client.Update(ctx, secretToUpdate); err != nil {
 			return inventoryResources, err
 		}
-
 	}
 
 	return inventoryResources, nil

@@ -62,6 +62,10 @@ spec:
                   type: string
                 description: Labels to add to all generated resources.
                 type: object
+              disableTags:
+                description: If DisableTags is true, labels will not be applied to
+                  the generated Clusters from the tags on the upstream Clusters.
+                type: boolean
               interval:
                 description: The interval at which to run the discovery
                 type: string
@@ -73,7 +77,7 @@ spec:
                   of this AutomatedClusterDiscovery.
                 type: boolean
               type:
-                description: Type is the provider type
+                description: Type is the provider type.
                 enum:
                 - aks
                 type: string

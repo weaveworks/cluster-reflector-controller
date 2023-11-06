@@ -60,6 +60,7 @@ func (p *AzureProvider) ListClusters(ctx context.Context) ([]*providers.Provider
 				Name:       *aksCluster.Name,
 				ID:         *aksCluster.ID,
 				KubeConfig: kubeConfig,
+				Labels:     tagsToLabels(aksCluster.Tags),
 			})
 		}
 	}
@@ -145,4 +146,14 @@ func clientFactory(subscriptionID string) (AKSClusterClient, error) {
 	}
 
 	return client, nil
+}
+
+func tagsToLabels(src map[string]*string) map[string]string {
+	labels := map[string]string{}
+
+	for k, v := range src {
+		labels[k] = *v
+	}
+
+	return labels
 }

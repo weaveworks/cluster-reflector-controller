@@ -78,6 +78,9 @@ func TestClusterProvider_ListClusters(t *testing.T) {
 			{
 				ID:   to.Ptr("/subscriptions/ace37984-3d07-4051-9002-d5a52c0ae14b/resourcegroups/team-pesto-use1/providers/Microsoft.ContainerService/managedClusters/pestomarketplacetest"),
 				Name: to.Ptr("cluster-1"),
+				Tags: map[string]*string{
+					"test-tag": to.Ptr("testing"),
+				},
 			},
 		},
 	}
@@ -96,6 +99,9 @@ func TestClusterProvider_ListClusters(t *testing.T) {
 		{
 			ID:   "/subscriptions/ace37984-3d07-4051-9002-d5a52c0ae14b/resourcegroups/team-pesto-use1/providers/Microsoft.ContainerService/managedClusters/pestomarketplacetest",
 			Name: "cluster-1",
+			Labels: map[string]string{
+				"test-tag": "testing",
+			},
 		},
 	}
 	if diff := cmp.Diff(want, provided); diff != "" {
