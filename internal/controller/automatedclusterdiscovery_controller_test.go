@@ -238,7 +238,9 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			SecretRef: &meta.LocalObjectReference{Name: "cluster-1-kubeconfig"},
 		}, gitopsCluster.Spec)
 		assertHasLabels(t, gitopsCluster, wantLabels)
-		assertHasAnnotations(t, gitopsCluster, wantAnnotations)
+		assertHasAnnotations(t, gitopsCluster, mergeMaps(wantAnnotations, map[string]string{
+			gitopsv1alpha1.GitOpsClusterNoSecretFinalizerAnnotation: "true",
+		}))
 
 		secret := &corev1.Secret{}
 		err = k8sClient.Get(ctx, types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: aksCluster.Namespace}, secret)

@@ -248,7 +248,11 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 			return inventoryResources, fmt.Errorf("failed to set ownership on created GitopsCluster: %w", err)
 		}
 		gitopsCluster.SetLabels(labelsForResource(*acd))
-		gitopsCluster.SetAnnotations(acd.Spec.CommonAnnotations)
+
+		gitopsCluster.SetAnnotations(mergeMaps(acd.Spec.CommonAnnotations, map[string]string{
+			gitopsv1alpha1.GitOpsClusterNoSecretFinalizerAnnotation: "true",
+		}))
+
 		_, err = controllerutil.CreateOrPatch(ctx, r.Client, gitopsCluster, func() error {
 			gitopsCluster.Spec = gitopsv1alpha1.GitopsClusterSpec{
 				SecretRef: &meta.LocalObjectReference{
