@@ -46,23 +46,21 @@ spec:
               aks:
                 description: AKS defines the desired state of AKS
                 properties:
-                  exclude:
-                    description: Exclude is the list of clusters to exclude
-                    items:
-                      type: string
-                    type: array
-                  filter:
-                    description: Filter criteria for AKS clusters
-                    properties:
-                      location:
-                        description: Location is the location of the AKS clusters
-                        type: string
-                    type: object
                   subscriptionID:
                     description: SubscriptionID is the Azure subscription ID
                     type: string
                 required:
                 - subscriptionID
+                type: object
+              commonAnnotations:
+                additionalProperties:
+                  type: string
+                description: Annotations to add to all generated resources.
+                type: object
+              commonLabels:
+                additionalProperties:
+                  type: string
+                description: Labels to add to all generated resources.
                 type: object
               interval:
                 description: The interval at which to run the discovery
