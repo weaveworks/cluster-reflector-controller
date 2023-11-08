@@ -275,7 +275,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		}
 
 		logger.Info("creating secret", "name", secret.GetName())
-		if err := controllerutil.SetOwnerReference(acd, secret, r.Scheme); err != nil {
+		if err := controllerutil.SetOwnerReference(gitopsCluster, secret, r.Scheme); err != nil {
 			return inventoryResources, fmt.Errorf("failed to set ownership on created Secret: %w", err)
 		}
 

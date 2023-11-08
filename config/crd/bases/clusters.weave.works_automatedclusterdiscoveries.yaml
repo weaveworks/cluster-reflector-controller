@@ -82,6 +82,8 @@ spec:
             - type
             type: object
           status:
+            default:
+              observedGeneration: -1
             description: AutomatedClusterDiscoveryStatus defines the observed state
               of AutomatedClusterDiscovery
             properties:
