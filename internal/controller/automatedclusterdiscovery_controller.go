@@ -215,9 +215,6 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 
 		inventoryResources = append(inventoryResources, clusterRef)
 
-		// publish event for ClusterCreated
-		r.event(cd, corev1.EventTypeNormal, "ClusterCreated", fmt.Sprintf("Cluster %s created", cluster.Name))
-
 		secret := newSecret(types.NamespacedName{
 			Name:      secretName,
 			Namespace: cd.Namespace,
@@ -232,6 +229,9 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		if err := controllerutil.SetOwnerReference(cd, secret, r.Scheme); err != nil {
 			return inventoryResources, fmt.Errorf("failed to set ownership on created Secret: %w", err)
 		}
+
+		// publish event for ClusterCreated
+		r.event(cd, corev1.EventTypeNormal, "ClusterCreated", fmt.Sprintf("Cluster %s created", cluster.Name))
 
 		secret.SetLabels(labelsForResource(*cd))
 		_, err = controllerutil.CreateOrPatch(ctx, r.Client, secret, func() error {
