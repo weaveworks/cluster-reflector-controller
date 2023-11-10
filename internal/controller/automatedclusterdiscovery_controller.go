@@ -44,12 +44,22 @@ import (
 
 const k8sManagedByLabel = "app.kubernetes.io/managed-by"
 
+type eventRecorder interface {
+	Event(object runtime.Object, eventtype, reason, message string)
+}
+
 // AutomatedClusterDiscoveryReconciler reconciles a AutomatedClusterDiscovery object
 type AutomatedClusterDiscoveryReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	EventRecorder eventRecorder
 
 	AKSProvider func(string) providers.Provider
+}
+
+// event emits a Kubernetes event and forwards the event to the event recorder
+func (r *AutomatedClusterDiscoveryReconciler) event(obj *clustersv1alpha1.AutomatedClusterDiscovery, eventtype, reason, message string) {
+	r.EventRecorder.Event(obj, eventtype, reason, message)
 }
 
 //+kubebuilder:rbac:groups=clusters.weave.works,resources=automatedclusterdiscoveries,verbs=get;list;watch;create;update;patch;delete
@@ -58,6 +68,7 @@ type AutomatedClusterDiscoveryReconciler struct {
 //+kubebuilder:rbac:groups=gitops.weave.works,resources=gitopsclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -238,7 +249,6 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		}
 		gitopsCluster.SetLabels(labelsForResource(*acd))
 		gitopsCluster.SetAnnotations(acd.Spec.CommonAnnotations)
-
 		_, err = controllerutil.CreateOrPatch(ctx, r.Client, gitopsCluster, func() error {
 			gitopsCluster.Spec = gitopsv1alpha1.GitopsClusterSpec{
 				SecretRef: &meta.LocalObjectReference{
@@ -269,9 +279,11 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 			return inventoryResources, fmt.Errorf("failed to set ownership on created Secret: %w", err)
 		}
 
+		// publish event for ClusterCreated
+		r.event(acd, corev1.EventTypeNormal, "ClusterCreated", fmt.Sprintf("Cluster %s created", cluster.Name))
+
 		secret.SetLabels(labelsForResource(*acd))
 		secret.SetAnnotations(acd.Spec.CommonAnnotations)
-
 		_, err = controllerutil.CreateOrPatch(ctx, r.Client, secret, func() error {
 			value, err := clientcmd.Write(*cluster.KubeConfig)
 			if err != nil {
@@ -309,6 +321,9 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 			if err := r.Client.Delete(ctx, cluster); err != nil {
 				return inventoryResources, fmt.Errorf("failed to delete cluster: %w", err)
 			}
+
+			// publish event for ClusterRemoved
+			r.event(acd, corev1.EventTypeNormal, "ClusterRemoved", fmt.Sprintf("Cluster %s removed", cluster.GetName()))
 		}
 	}
 
