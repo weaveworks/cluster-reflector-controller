@@ -201,6 +201,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			AKSProvider: func(providerID string) providers.Provider {
 				return &testProvider
 			},
+			EventRecorder: &mockEventRecorder{},
 		}
 
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
