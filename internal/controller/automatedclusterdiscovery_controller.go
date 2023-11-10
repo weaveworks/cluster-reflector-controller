@@ -94,45 +94,47 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 	// Set the value of the reconciliation request in status.
 	if v, ok := meta.ReconcileAnnotationValue(clusterDiscovery.GetAnnotations()); ok {
 		clusterDiscovery.Status.LastHandledReconcileAt = v
+		if err := r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
-	if clusterDiscovery.Spec.Type == "aks" {
-		logger.Info("reconciling AKS cluster reflector",
-			"name", clusterDiscovery.Spec.Name,
-		)
+	inventoryRefs, err := r.reconcileResources(ctx, clusterDiscovery)
+	if err != nil {
+		clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, clusterDiscovery.Status.Inventory, metav1.ConditionFalse, clustersv1alpha1.ReconciliationFailedReason, err.Error())
 
-		azureProvider := r.AKSProvider(clusterDiscovery.Spec.AKS.SubscriptionID)
-
-		// We get the clusters and cluster ID separately so that we can return
-		// the error from the Reconciler without touching the inventory.
-		clusters, err := azureProvider.ListClusters(ctx)
-		if err != nil {
-			logger.Error(err, "failed to list AKS clusters")
+		if err := r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
 			return ctrl.Result{}, err
 		}
 
-		clusterID, err := azureProvider.ClusterID(ctx, r.Client)
+		return ctrl.Result{}, err
+	}
+
+	clusterDiscovery.Status.Inventory = &clustersv1alpha1.ResourceInventory{Entries: inventoryRefs}
+
+	// Get number of clusters in inventory
+	clusters := 0
+	for _, item := range inventoryRefs {
+		objMeta, err := object.ParseObjMetadata(item.ID)
 		if err != nil {
-			logger.Error(err, "failed to list get Cluster ID from AKS cluster")
-			return ctrl.Result{}, err
+			return ctrl.Result{}, fmt.Errorf("failed to parse object ID %s: %w", item.ID, err)
 		}
 
-		// TODO: Fix this so that we record the inventoryRefs even if we get an
-		// error.
-		inventoryRefs, err := r.reconcileClusters(ctx, clusters, clusterID, clusterDiscovery)
-		if err != nil {
-			return ctrl.Result{}, err
+		if objMeta.GroupKind.Kind == "GitopsCluster" {
+			clusters++
 		}
+	}
 
-		sort.Slice(inventoryRefs, func(i, j int) bool {
-			return inventoryRefs[i].ID < inventoryRefs[j].ID
-		})
-
-		clusterDiscovery.Status.Inventory = &clustersv1alpha1.ResourceInventory{Entries: inventoryRefs}
+	if inventoryRefs != nil {
+		logger.Info("reconciled clusters", "count", len(inventoryRefs))
+		clustersv1alpha1.SetAutomatedClusterDiscoveryReadiness(clusterDiscovery, clusterDiscovery.Status.Inventory, metav1.ConditionTrue, clustersv1alpha1.ReconciliationSucceededReason,
+			fmt.Sprintf("%d clusters discovered", clusters))
 
 		if err = r.patchStatus(ctx, req, clusterDiscovery.Status); err != nil {
 			return ctrl.Result{}, err
 		}
+	} else {
+		logger.Info("no clusters to reconcile")
 	}
 
 	interval := clusterDiscovery.Spec.Interval
@@ -143,6 +145,52 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 	return ctrl.Result{RequeueAfter: interval.Duration}, nil
 }
 
+func (r *AutomatedClusterDiscoveryReconciler) reconcileResources(ctx context.Context, cd *clustersv1alpha1.AutomatedClusterDiscovery) ([]clustersv1alpha1.ResourceRef, error) {
+	logger := log.FromContext(ctx)
+
+	var err error
+	clusters, clusterID := []*providers.ProviderCluster{}, ""
+
+	if cd.Spec.Type == "aks" {
+		logger.Info("reconciling AKS cluster reflector",
+			"name", cd.Spec.Name,
+		)
+
+		azureProvider := r.AKSProvider(cd.Spec.AKS.SubscriptionID)
+
+		// We get the clusters and cluster ID separately so that we can return
+		// the error from the Reconciler without touching the inventory.
+		clusters, err = azureProvider.ListClusters(ctx)
+		if err != nil {
+			logger.Error(err, "failed to list AKS clusters")
+
+			return nil, err
+		}
+
+		clusterID, err = azureProvider.ClusterID(ctx, r.Client)
+		if err != nil {
+			logger.Error(err, "failed to list get Cluster ID from AKS cluster")
+
+			return nil, err
+		}
+	}
+
+	// TODO: Fix this so that we record the inventoryRefs even if we get an
+	// error.
+	inventoryRefs, err := r.reconcileClusters(ctx, clusters, clusterID, cd)
+	if err != nil {
+		logger.Error(err, "failed to reconcile clusters")
+
+		return nil, err
+	}
+
+	sort.Slice(inventoryRefs, func(i, j int) bool {
+		return inventoryRefs[i].ID < inventoryRefs[j].ID
+	})
+
+	return inventoryRefs, nil
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *AutomatedClusterDiscoveryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -151,7 +199,7 @@ func (r *AutomatedClusterDiscoveryReconciler) SetupWithManager(mgr ctrl.Manager)
 		Complete(r)
 }
 
-func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Context, clusters []*providers.ProviderCluster, currentClusterID string, cd *clustersv1alpha1.AutomatedClusterDiscovery) ([]clustersv1alpha1.ResourceRef, error) {
+func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Context, clusters []*providers.ProviderCluster, currentClusterID string, acd *clustersv1alpha1.AutomatedClusterDiscovery) ([]clustersv1alpha1.ResourceRef, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("reconciling clusters", "count", len(clusters))
 
@@ -183,7 +231,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 
 		gitopsCluster := newGitopsCluster(secretName, types.NamespacedName{
 			Name:      cluster.Name,
-			Namespace: cd.Namespace,
+			Namespace: acd.Namespace,
 		})
 
 		clusterRef, err := clustersv1alpha1.ResourceRefFromObject(gitopsCluster)
@@ -191,15 +239,16 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 			return inventoryResources, err
 		}
 
-		if isExistingRef(clusterRef, cd.Status.Inventory) {
+		if isExistingRef(clusterRef, acd.Status.Inventory) {
 			existingClusters = append(existingClusters, clusterRef)
 		}
 
 		logger.Info("creating gitops cluster", "name", gitopsCluster.GetName())
-		if err := controllerutil.SetOwnerReference(cd, gitopsCluster, r.Scheme); err != nil {
+		if err := controllerutil.SetOwnerReference(acd, gitopsCluster, r.Scheme); err != nil {
 			return inventoryResources, fmt.Errorf("failed to set ownership on created GitopsCluster: %w", err)
 		}
 		gitopsCluster.SetLabels(labelsForResource(*acd))
+		gitopsCluster.SetAnnotations(acd.Spec.CommonAnnotations)
 		_, err = controllerutil.CreateOrPatch(ctx, r.Client, gitopsCluster, func() error {
 			gitopsCluster.Spec = gitopsv1alpha1.GitopsClusterSpec{
 				SecretRef: &meta.LocalObjectReference{
@@ -217,7 +266,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 
 		secret := newSecret(types.NamespacedName{
 			Name:      secretName,
-			Namespace: cd.Namespace,
+			Namespace: acd.Namespace,
 		})
 
 		secretRef, err := clustersv1alpha1.ResourceRefFromObject(secret)
@@ -226,7 +275,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		}
 
 		logger.Info("creating secret", "name", secret.GetName())
-		if err := controllerutil.SetOwnerReference(cd, secret, r.Scheme); err != nil {
+		if err := controllerutil.SetOwnerReference(acd, secret, r.Scheme); err != nil {
 			return inventoryResources, fmt.Errorf("failed to set ownership on created Secret: %w", err)
 		}
 
@@ -251,9 +300,9 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		inventoryResources = append(inventoryResources, secretRef)
 	}
 
-	if cd.Status.Inventory != nil {
+	if acd.Status.Inventory != nil {
 		clustersToDelete := []client.Object{}
-		for _, item := range cd.Status.Inventory.Entries {
+		for _, item := range acd.Status.Inventory.Entries {
 			obj, err := unstructuredFromResourceRef(item)
 			if err != nil {
 				return inventoryResources, err
@@ -290,7 +339,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		}
 
 		secretToUpdate := &corev1.Secret{}
-		if err := r.Client.Get(ctx, types.NamespacedName{Name: existingCluster.Spec.SecretRef.Name, Namespace: cd.GetNamespace()}, secretToUpdate); err != nil {
+		if err := r.Client.Get(ctx, types.NamespacedName{Name: existingCluster.Spec.SecretRef.Name, Namespace: acd.GetNamespace()}, secretToUpdate); err != nil {
 			// TODO: don't error, create a new secret!
 			return inventoryResources, fmt.Errorf("failed to get the secret to update: %w", err)
 		}
@@ -373,10 +422,28 @@ func clustersToMapping(clusters []*providers.ProviderCluster) map[string]*provid
 }
 
 func labelsForResource(acd clustersv1alpha1.AutomatedClusterDiscovery) map[string]string {
-	return map[string]string{
+	appliedLabels := map[string]string{
 		k8sManagedByLabel:                       "cluster-reflector-controller",
 		"clusters.weave.works/origin-name":      acd.GetName(),
 		"clusters.weave.works/origin-namespace": acd.GetNamespace(),
 		"clusters.weave.works/origin-type":      acd.Spec.Type,
 	}
+
+	return mergeMaps(acd.Spec.CommonLabels, appliedLabels)
+}
+
+func mergeMaps[K comparable, V any](maps ...map[K]V) map[K]V {
+	result := map[K]V{}
+
+	for _, map_ := range maps {
+		if map_ == nil {
+			continue
+		}
+
+		for k, v := range map_ {
+			result[k] = v
+		}
+	}
+
+	return result
 }

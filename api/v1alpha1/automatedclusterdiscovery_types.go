@@ -26,17 +26,6 @@ type AKS struct {
 	// SubscriptionID is the Azure subscription ID
 	// +required
 	SubscriptionID string `json:"subscriptionID"`
-
-	Filter AKSFilter `json:"filter,omitempty"`
-
-	// Exclude is the list of clusters to exclude
-	Exclude []string `json:"exclude,omitempty"`
-}
-
-// Filter criteria for AKS clusters
-type AKSFilter struct {
-	// Location is the location of the AKS clusters
-	Location string `json:"location,omitempty"`
 }
 
 // AutomatedClusterDiscoverySpec defines the desired state of AutomatedClusterDiscovery
@@ -58,11 +47,25 @@ type AutomatedClusterDiscoverySpec struct {
 	// AutomatedClusterDiscovery.
 	// +optional
 	Suspend bool `json:"suspend,omitempty"`
+
+	// Labels to add to all generated resources.
+	CommonLabels map[string]string `json:"commonLabels,omitempty"`
+	// Annotations to add to all generated resources.
+	CommonAnnotations map[string]string `json:"commonAnnotations,omitempty"`
 }
 
 // AutomatedClusterDiscoveryStatus defines the observed state of AutomatedClusterDiscovery
 type AutomatedClusterDiscoveryStatus struct {
 	meta.ReconcileRequestStatus `json:",inline"`
+
+	// ObservedGeneration is the last observed generation of the
+	// object.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// Conditions holds the conditions for the AutomatedClusterDiscovery
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// Inventory contains the list of Kubernetes resource object references that
 	// have been successfully applied
@@ -72,13 +75,16 @@ type AutomatedClusterDiscoveryStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description=""
+//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].message",description=""
 
 // AutomatedClusterDiscovery is the Schema for the automatedclusterdiscoveries API
 type AutomatedClusterDiscovery struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AutomatedClusterDiscoverySpec   `json:"spec,omitempty"`
+	Spec AutomatedClusterDiscoverySpec `json:"spec,omitempty"`
+	// +kubebuilder:default={"observedGeneration":-1}
 	Status AutomatedClusterDiscoveryStatus `json:"status,omitempty"`
 }
 
