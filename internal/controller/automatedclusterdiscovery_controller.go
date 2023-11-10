@@ -196,6 +196,7 @@ func (r *AutomatedClusterDiscoveryReconciler) SetupWithManager(mgr ctrl.Manager)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&clustersv1alpha1.AutomatedClusterDiscovery{}, builder.WithPredicates(
 			predicate.Or(predicate.GenerationChangedPredicate{}, predicates.ReconcileRequestedPredicate{}))).
+		Owns(&gitopsv1alpha1.GitopsCluster{}, builder.MatchEveryOwner).
 		Complete(r)
 }
 
