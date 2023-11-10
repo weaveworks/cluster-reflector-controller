@@ -488,6 +488,76 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("Reconcile failing but still records the status", func(t *testing.T) {
+		ctx := context.TODO()
+		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-aks",
+				Namespace: "default",
+			},
+			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
+				Type: "aks",
+				AKS: &clustersv1alpha1.AKS{
+					SubscriptionID: "subscription-123",
+				},
+				Interval: metav1.Duration{Duration: time.Minute},
+			},
+		}
+
+		err := k8sClient.Create(ctx, aksCluster)
+		assert.NoError(t, err)
+		defer deleteClusterDiscoveryAndInventory(t, k8sClient, aksCluster)
+
+		cluster := &providers.ProviderCluster{
+			Name: "cluster-1",
+			KubeConfig: &kubeconfig.Config{
+				APIVersion: "v1",
+				Clusters: map[string]*kubeconfig.Cluster{
+					"cluster-1": {
+						Server:                   "https://cluster-prod.example.com/",
+						CertificateAuthorityData: []uint8(testCAData),
+					},
+				},
+			},
+		}
+
+		testProvider := stubProvider{
+			response: []*providers.ProviderCluster{
+				cluster,
+			},
+			responseErr: assert.AnError,
+		}
+
+		reconciler := &AutomatedClusterDiscoveryReconciler{
+			Client: k8sClient,
+			Scheme: scheme,
+			AKSProvider: func(providerID string) providers.Provider {
+				return &testProvider
+			},
+		}
+		assert.NoError(t, reconciler.SetupWithManager(mgr))
+
+		_, err = reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(aksCluster)})
+		assert.Error(t, err)
+
+		err = k8sClient.Get(ctx, client.ObjectKeyFromObject(aksCluster), aksCluster)
+		assert.NoError(t, err)
+
+		aksCluster.Annotations = map[string]string{
+			meta.ReconcileRequestAnnotation: "testing",
+		}
+		err = k8sClient.Update(ctx, aksCluster)
+		assert.NoError(t, err)
+
+		_, err = reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(aksCluster)})
+		assert.Error(t, err)
+
+		err = k8sClient.Get(ctx, client.ObjectKeyFromObject(aksCluster), aksCluster)
+		assert.NoError(t, err)
+		assert.Equal(t, "testing", aksCluster.Annotations[meta.ReconcileRequestAnnotation])
+		assert.Equal(t, "testing", aksCluster.Status.LastHandledReconcileAt)
+	})
+
 	t.Run("Reconcile publishes events on cluster creation and removal", func(t *testing.T) {
 		ctx := context.TODO()
 		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
@@ -667,12 +737,13 @@ func (m *mockEventRecorder) Event(object runtime.Object, eventtype, reason, mess
 }
 
 type stubProvider struct {
-	response  []*providers.ProviderCluster
-	clusterID string
+	response    []*providers.ProviderCluster
+	clusterID   string
+	responseErr error
 }
 
 func (s *stubProvider) ListClusters(ctx context.Context) ([]*providers.ProviderCluster, error) {
-	return s.response, nil
+	return s.response, s.responseErr
 }
 
 func (s *stubProvider) ClusterID(ctx context.Context, kubeClient client.Reader) (string, error) {

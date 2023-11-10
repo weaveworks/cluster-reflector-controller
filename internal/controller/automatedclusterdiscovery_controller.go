@@ -199,7 +199,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		if err := controllerutil.SetOwnerReference(cd, gitopsCluster, r.Scheme); err != nil {
 			return inventoryResources, fmt.Errorf("failed to set ownership on created GitopsCluster: %w", err)
 		}
-		gitopsCluster.SetLabels(labelsForResource(*cd))
+		gitopsCluster.SetLabels(labelsForResource(*acd))
 		_, err = controllerutil.CreateOrPatch(ctx, r.Client, gitopsCluster, func() error {
 			gitopsCluster.Spec = gitopsv1alpha1.GitopsClusterSpec{
 				SecretRef: &meta.LocalObjectReference{
@@ -233,7 +233,8 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		// publish event for ClusterCreated
 		r.event(cd, corev1.EventTypeNormal, "ClusterCreated", fmt.Sprintf("Cluster %s created", cluster.Name))
 
-		secret.SetLabels(labelsForResource(*cd))
+		secret.SetLabels(labelsForResource(*acd))
+		secret.SetAnnotations(acd.Spec.CommonAnnotations)
 		_, err = controllerutil.CreateOrPatch(ctx, r.Client, secret, func() error {
 			value, err := clientcmd.Write(*cluster.KubeConfig)
 			if err != nil {
