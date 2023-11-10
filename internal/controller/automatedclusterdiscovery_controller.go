@@ -280,7 +280,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		}
 
 		// publish event for ClusterCreated
-		r.event(cd, corev1.EventTypeNormal, "ClusterCreated", fmt.Sprintf("Cluster %s created", cluster.Name))
+		r.event(acd, corev1.EventTypeNormal, "ClusterCreated", fmt.Sprintf("Cluster %s created", cluster.Name))
 
 		secret.SetLabels(labelsForResource(*acd))
 		secret.SetAnnotations(acd.Spec.CommonAnnotations)
@@ -323,7 +323,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 			}
 
 			// publish event for ClusterRemoved
-			r.event(cd, corev1.EventTypeNormal, "ClusterRemoved", fmt.Sprintf("Cluster %s removed", cluster.GetName()))
+			r.event(acd, corev1.EventTypeNormal, "ClusterRemoved", fmt.Sprintf("Cluster %s removed", cluster.GetName()))
 		}
 	}
 
