@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
 	"os"
 
@@ -120,12 +119,4 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-}
-
-type stubProvider struct {
-	response []*providers.ProviderCluster
-}
-
-func (s *stubProvider) ListClusters(ctx context.Context) ([]*providers.ProviderCluster, error) {
-	return s.response, nil
 }

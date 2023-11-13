@@ -144,13 +144,20 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			newGitopsCluster(secret.GetName(), client.ObjectKeyFromObject(gitopsCluster)))
 		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "1 clusters discovered")
 
-		clusterRef := metav1.OwnerReference{
+		discoveryRef := metav1.OwnerReference{
 			Kind:       "AutomatedClusterDiscovery",
 			APIVersion: "clusters.weave.works/v1alpha1",
 			Name:       aksCluster.Name,
 			UID:        aksCluster.UID,
 		}
-		assertHasOwnerReference(t, gitopsCluster, clusterRef)
+		assertHasOwnerReference(t, gitopsCluster, discoveryRef)
+
+		clusterRef := metav1.OwnerReference{
+			Kind:       "GitopsCluster",
+			APIVersion: "gitops.weave.works/v1alpha1",
+			Name:       gitopsCluster.Name,
+			UID:        gitopsCluster.UID,
+		}
 		assertHasOwnerReference(t, secret, clusterRef)
 	})
 
@@ -231,7 +238,9 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			SecretRef: &meta.LocalObjectReference{Name: "cluster-1-kubeconfig"},
 		}, gitopsCluster.Spec)
 		assertHasLabels(t, gitopsCluster, wantLabels)
-		assertHasAnnotations(t, gitopsCluster, wantAnnotations)
+		assertHasAnnotations(t, gitopsCluster, mergeMaps(wantAnnotations, map[string]string{
+			gitopsv1alpha1.GitOpsClusterNoSecretFinalizerAnnotation: "true",
+		}))
 
 		secret := &corev1.Secret{}
 		err = k8sClient.Get(ctx, types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: aksCluster.Namespace}, secret)
@@ -845,6 +854,7 @@ func (s *stubProvider) ClusterID(ctx context.Context, kubeClient client.Reader) 
 
 func deleteObject(t *testing.T, cl client.Client, obj client.Object) {
 	t.Helper()
+
 	if err := cl.Delete(context.TODO(), obj); err != nil {
 		t.Fatal(err)
 	}
@@ -874,6 +884,7 @@ func deleteClusterDiscoveryAndInventory(t *testing.T, cl client.Client, cd *clus
 
 func assertAutomatedClusterDiscoveryCondition(t *testing.T, acd *clustersv1alpha1.AutomatedClusterDiscovery, condType, msg string) {
 	t.Helper()
+
 	cond := apimeta.FindStatusCondition(acd.Status.Conditions, condType)
 	if cond == nil {
 		t.Fatalf("failed to find matching status condition for type %s in %#v", condType, acd.Status.Conditions)
@@ -902,6 +913,7 @@ func assertInventoryHasItems(t *testing.T, acd *clustersv1alpha1.AutomatedCluste
 
 func assertInventoryHasNoItems(t *testing.T, acd *clustersv1alpha1.AutomatedClusterDiscovery) {
 	t.Helper()
+
 	if acd.Status.Inventory == nil {
 		return
 	}
@@ -912,6 +924,8 @@ func assertInventoryHasNoItems(t *testing.T, acd *clustersv1alpha1.AutomatedClus
 }
 
 func assertHasOwnerReference(t *testing.T, obj metav1.Object, ownerRef metav1.OwnerReference) {
+	t.Helper()
+
 	for _, ref := range obj.GetOwnerReferences() {
 		t.Logf("comparing %#v with %#v", ref, ownerRef)
 		if isOwnerReferenceEqual(ref, ownerRef) {

@@ -196,6 +196,7 @@ func (r *AutomatedClusterDiscoveryReconciler) SetupWithManager(mgr ctrl.Manager)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&clustersv1alpha1.AutomatedClusterDiscovery{}, builder.WithPredicates(
 			predicate.Or(predicate.GenerationChangedPredicate{}, predicates.ReconcileRequestedPredicate{}))).
+		Owns(&gitopsv1alpha1.GitopsCluster{}, builder.MatchEveryOwner).
 		Complete(r)
 }
 
@@ -248,7 +249,11 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 			return inventoryResources, fmt.Errorf("failed to set ownership on created GitopsCluster: %w", err)
 		}
 		gitopsCluster.SetLabels(labelsForResource(*acd))
-		gitopsCluster.SetAnnotations(acd.Spec.CommonAnnotations)
+
+		gitopsCluster.SetAnnotations(mergeMaps(acd.Spec.CommonAnnotations, map[string]string{
+			gitopsv1alpha1.GitOpsClusterNoSecretFinalizerAnnotation: "true",
+		}))
+
 		_, err = controllerutil.CreateOrPatch(ctx, r.Client, gitopsCluster, func() error {
 			gitopsCluster.Spec = gitopsv1alpha1.GitopsClusterSpec{
 				SecretRef: &meta.LocalObjectReference{
@@ -275,7 +280,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		}
 
 		logger.Info("creating secret", "name", secret.GetName())
-		if err := controllerutil.SetOwnerReference(acd, secret, r.Scheme); err != nil {
+		if err := controllerutil.SetOwnerReference(gitopsCluster, secret, r.Scheme); err != nil {
 			return inventoryResources, fmt.Errorf("failed to set ownership on created Secret: %w", err)
 		}
 
