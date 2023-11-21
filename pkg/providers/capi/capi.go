@@ -10,15 +10,15 @@ import (
 )
 
 type CAPIProvider struct {
-	Kubeclient           client.Client
 	Namespace            string
-	ManagementClusterRef *clustersv1alpha1.Cluster
+	ManagementClusterRef clustersv1alpha1.Cluster
+	Kubeclient           client.Reader
 }
 
 var _ providers.Provider = (*CAPIProvider)(nil)
 
 // NewCAPIProvider creates and returns a CAPIProvider ready for use
-func NewCAPIProvider(client client.Client, namespace string, managementClusterRef *clustersv1alpha1.Cluster) *CAPIProvider {
+func NewCAPIProvider(client client.Reader, namespace string, managementClusterRef clustersv1alpha1.Cluster) *CAPIProvider {
 	provider := &CAPIProvider{
 		Kubeclient:           client,
 		Namespace:            namespace,

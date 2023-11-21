@@ -21,7 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// AKS defines the desired state of AKS
+// AKS configures how AKS clusters are reflected.
 type AKS struct {
 	// SubscriptionID is the Azure subscription ID
 	// +required
@@ -31,7 +31,7 @@ type AKS struct {
 // CAPI defines the desired state of CAPI
 type CAPI struct {
 	// Current Cluster name indicating the management cluster
-	// used to avoid choosing the cluster the controller is running in
+	// used to avoid choosing the cluster the controller is running in.
 	CurrentClusterRef Cluster `json:"currentClusterRef,omitempty"`
 }
 
@@ -41,18 +41,23 @@ type Cluster struct {
 	Name string `json:"name"`
 }
 
-// String returns the string representation of the Cluster
+// String returns the string representation of the Cluster.
 func (c Cluster) String() string {
 	return c.Name
 }
 
-// AutomatedClusterDiscoverySpec defines the desired state of AutomatedClusterDiscovery
-type AutomatedClusterDiscoverySpec struct {
-	// Name is the name of the cluster
-	Name string `json:"name,omitempty"`
+// EKS configures how AKS clusters are reflected.
+type EKS struct {
+	// Region is the AWS region
+	// +required
+	Region string `json:"region"`
+}
 
-	// Type is the provider type.
-	// +kubebuilder:validation:Enum=aks;capi
+// AutomatedClusterDiscoverySpec defines the desired state of
+// AutomatedClusterDiscovery.
+type AutomatedClusterDiscoverySpec struct {
+	// Type is the provider type
+	// +kubebuilder:validation:Enum=aks;eks;capi
 	Type string `json:"type"`
 
 	// If DisableTags is true, labels will not be applied to the generated
@@ -60,11 +65,16 @@ type AutomatedClusterDiscoverySpec struct {
 	// +optional
 	DisableTags bool `json:"disableTags"`
 
-	// AKS configures discovery of AKS clusters from Azure.
+	// AKS configures discovery of AKS clusters from Azure. Must be provided if
+	// the type is aks.
 	AKS *AKS `json:"aks,omitempty"`
 
 	// CAPI configures discovery of CAPI clusters
 	CAPI *CAPI `json:"capi,omitempty"`
+
+	// EKS configures discovery of EKS clusters from AWS. Must be provided if
+	// the type is eks.
+	EKS *EKS `json:"eks,omitempty"`
 
 	// The interval at which to run the discovery
 	// +required

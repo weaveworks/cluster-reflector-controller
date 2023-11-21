@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	gitopsv1alpha1 "github.com/weaveworks/cluster-controller/api/v1alpha1"
+	"github.com/weaveworks/cluster-reflector-controller/pkg/providers"
+	"github.com/weaveworks/cluster-reflector-controller/pkg/providers/aws"
 	"github.com/weaveworks/cluster-reflector-controller/pkg/providers/azure"
 	"github.com/weaveworks/cluster-reflector-controller/pkg/sync"
 	corev1 "k8s.io/api/core/v1"
@@ -21,25 +23,67 @@ type GitopsClusterOutput struct {
 	Secret        *corev1.Secret
 }
 
-func main() {
-	var azureSubscriptionID string
-	var namespace string
-	var export bool
+type Params struct {
+	Provider            string
+	AWSRegion           string
+	AzureSubscriptionID string
+	Namespace           string
+	Export              bool
+}
 
+var params Params
+
+const authHelperMessage = `
+If you're using a credential_process in your ~/.aws/config, you'll need to set the AWS_SDK_LOAD_CONFIG environment variable:
+
+AWS_SDK_LOAD_CONFIG=1 cluster-reflector-cli reflect ...
+`
+
+func main() {
 	var reflectCmd = &cobra.Command{
 		Use:   "reflect",
-		Short: "Reflect AKS clusters",
+		Short: "Reflect AKS/EKS clusters",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			azureProvider := azure.NewAzureProvider(azureSubscriptionID)
+			if params.Provider == "" {
+				return fmt.Errorf("provider must be set")
+			}
 
-			clusters, err := azureProvider.ListClusters(cmd.Context())
-			if err != nil {
-				return fmt.Errorf("failed to list clusters: %w", err)
+			if params.Provider != "aws" && params.Provider != "azure" {
+				return fmt.Errorf("provider must be aws or azure")
+			}
+
+			if params.Provider == "azure" && params.AzureSubscriptionID == "" {
+				return fmt.Errorf("azure-subscription-id must be set")
+			}
+
+			if params.Namespace == "default" {
+				fmt.Fprint(cmd.ErrOrStderr(), "WARNING: You are using the default namespace. This is not recommended.\n")
+			}
+
+			clusters := []*providers.ProviderCluster{}
+			var err error
+
+			if params.Provider == "aws" {
+				awsProvider := aws.NewAWSProvider(params.AWSRegion)
+
+				clusters, err = awsProvider.ListClusters(cmd.Context())
+				if err != nil {
+					return fmt.Errorf("failed to list clusters: %w\n%s", err, authHelperMessage)
+				}
+			}
+
+			if params.Provider == "azure" {
+				azureProvider := azure.NewAzureProvider(params.AzureSubscriptionID)
+
+				clusters, err = azureProvider.ListClusters(cmd.Context())
+				if err != nil {
+					return fmt.Errorf("failed to list clusters: %w", err)
+				}
 			}
 
 			var k8sClient client.Client
 
-			if !export {
+			if !params.Export {
 				k8sClient, err = CreateClient()
 				if err != nil {
 					return fmt.Errorf("failed to create client: %w", err)
@@ -53,14 +97,14 @@ func main() {
 
 			exports := []runtime.Object{}
 			for _, cluster := range clusters {
-				gc, gcs, err := sync.SyncCluster(cmd.Context(), k8sClient, namespace, cluster)
+				gc, gcs, err := sync.SyncCluster(cmd.Context(), k8sClient, params.Namespace, cluster)
 				if err != nil {
 					return fmt.Errorf("failed to sync cluster: %w", err)
 				}
 				exports = append(exports, gc, gcs)
 			}
 
-			if export {
+			if params.Export {
 				for _, obj := range exports {
 					clusterBytes, err := yaml.Marshal(obj)
 					if err != nil {
@@ -80,9 +124,13 @@ func main() {
 		},
 	}
 
-	reflectCmd.Flags().StringVar(&azureSubscriptionID, "azure-subscription-id", "", "Azure Subscription ID")
-	reflectCmd.Flags().StringVar(&namespace, "namespace", "default", "Namespace to create the GitopsCluster in")
-	reflectCmd.Flags().BoolVar(&export, "export", false, "Export resources to stdout")
+	reflectCmd.Flags().StringVar(&params.Provider, "provider", "", "Provider to use (aws or azure)")
+	reflectCmd.Flags().StringVar(&params.AWSRegion, "region", "us-west-2", "AWS Region")
+	reflectCmd.Flags().StringVar(&params.AzureSubscriptionID, "azure-subscription-id", "", "Azure Subscription ID")
+	reflectCmd.Flags().StringVar(&params.Namespace, "namespace", "default", "Namespace to create the GitopsCluster in")
+	reflectCmd.Flags().BoolVar(&params.Export, "export", false, "Export resources to stdout")
+
+	reflectCmd.MarkFlagRequired("provider")
 
 	var rootCmd = &cobra.Command{Use: "cluster-reflector-cli"}
 	rootCmd.AddCommand(reflectCmd)

@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -27,6 +28,9 @@ import (
 	gitopsv1alpha1 "github.com/weaveworks/cluster-controller/api/v1alpha1"
 	clustersv1alpha1 "github.com/weaveworks/cluster-reflector-controller/api/v1alpha1"
 	"github.com/weaveworks/cluster-reflector-controller/pkg/providers"
+	"github.com/weaveworks/cluster-reflector-controller/pkg/providers/aws"
+	"github.com/weaveworks/cluster-reflector-controller/pkg/providers/azure"
+	"github.com/weaveworks/cluster-reflector-controller/pkg/providers/capi"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -48,14 +52,15 @@ type eventRecorder interface {
 	Event(object runtime.Object, eventtype, reason, message string)
 }
 
+type providerFactoryFunc func(client.Reader, *clustersv1alpha1.AutomatedClusterDiscovery) (providers.Provider, error)
+
 // AutomatedClusterDiscoveryReconciler reconciles a AutomatedClusterDiscovery object
 type AutomatedClusterDiscoveryReconciler struct {
 	client.Client
 	Scheme        *runtime.Scheme
 	EventRecorder eventRecorder
 
-	AKSProvider  func(string) providers.Provider
-	CAPIProvider func(client.Client, string, *clustersv1alpha1.Cluster) providers.Provider
+	ProviderFactory providerFactoryFunc
 }
 
 // event emits a Kubernetes event and forwards the event to the event recorder
@@ -89,7 +94,6 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 
 	logger.Info("reconciling cluster reflector",
 		"type", clusterDiscovery.Spec.Type,
-		"name", clusterDiscovery.Spec.Name,
 	)
 
 	// Set the value of the reconciliation request in status.
@@ -149,45 +153,22 @@ func (r *AutomatedClusterDiscoveryReconciler) Reconcile(ctx context.Context, req
 func (r *AutomatedClusterDiscoveryReconciler) reconcileResources(ctx context.Context, cd *clustersv1alpha1.AutomatedClusterDiscovery) ([]clustersv1alpha1.ResourceRef, error) {
 	logger := log.FromContext(ctx)
 
-	var err error
-	clusters, clusterID := []*providers.ProviderCluster{}, ""
+	provider, err := r.ProviderFactory(r.Client, cd)
+	if err != nil {
+		logger.Error(err, "failed to create provider", "type", cd.Spec.Type)
+		return nil, err
+	}
 
-	if cd.Spec.Type == "aks" {
-		logger.Info("reconciling AKS cluster reflector",
-			"name", cd.Spec.Name,
-		)
+	clusters, err := provider.ListClusters(ctx)
+	if err != nil {
+		logger.Error(err, "failed to list clusters from provider", "type", cd.Spec.Type)
+		return nil, err
+	}
 
-		azureProvider := r.AKSProvider(cd.Spec.AKS.SubscriptionID)
-
-		// We get the clusters and cluster ID separately so that we can return
-		// the error from the Reconciler without touching the inventory.
-		clusters, err = azureProvider.ListClusters(ctx)
-		if err != nil {
-			logger.Error(err, "failed to list AKS clusters")
-
-			return nil, err
-		}
-
-		clusterID, err = azureProvider.ClusterID(ctx, r.Client)
-		if err != nil {
-			logger.Error(err, "failed to list get Cluster ID from AKS cluster")
-
-			return nil, err
-		}
-	} else if cd.Spec.Type == "capi" {
-		logger.Info("reconciling CAPI cluster reflector",
-			"name", cd.Spec.Name,
-		)
-
-		capiProvider := r.CAPIProvider(r.Client, cd.Namespace, &cd.Spec.CAPI.CurrentClusterRef)
-		clusterID = cd.Spec.CAPI.CurrentClusterRef.String()
-
-		clusters, err = capiProvider.ListClusters(ctx)
-		if err != nil {
-			logger.Error(err, "failed to list CAPI clusters")
-			return nil, err
-		}
-
+	clusterID, err := provider.ClusterID(ctx, r.Client)
+	if err != nil {
+		logger.Error(err, "failed to get cluster ID", "type", cd.Spec.Type)
+		return nil, err
 	}
 
 	// TODO: Fix this so that we record the inventoryRefs even if we get an
@@ -195,7 +176,6 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileResources(ctx context.Con
 	inventoryRefs, err := r.reconcileClusters(ctx, clusters, clusterID, cd)
 	if err != nil {
 		logger.Error(err, "failed to reconcile clusters")
-
 		return nil, err
 	}
 
@@ -498,4 +478,28 @@ func mergeMaps[K comparable, V any](maps ...map[K]V) map[K]V {
 	}
 
 	return result
+}
+
+// DefaultProviderFactory creates an appropriate factory for creating provider
+// clients based on the spec of the AutomatedClusterDiscovery.
+func DefaultProviderFactory(k8sClient client.Reader, acd *clustersv1alpha1.AutomatedClusterDiscovery) (providers.Provider, error) {
+	switch acd.Spec.Type {
+	case "aks":
+		if acd.Spec.AKS == nil {
+			return nil, errors.New("discovery .spec.type = aks but no AKS configuration provided")
+		}
+
+		return azure.NewAzureProvider(acd.Spec.AKS.SubscriptionID), nil
+	case "eks":
+		if acd.Spec.EKS == nil {
+			return nil, errors.New("discovery .spec.type = eks but no EKS configuration provided")
+		}
+
+		return aws.NewAWSProvider(acd.Spec.EKS.Region), nil
+
+	case "capi":
+		return capi.NewCAPIProvider(k8sClient, acd.GetNamespace(), acd.Spec.CAPI.CurrentClusterRef), nil
+	}
+
+	return nil, fmt.Errorf("unknown provider type: %s", acd.Spec.Type)
 }

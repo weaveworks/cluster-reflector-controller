@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -62,19 +63,8 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Run("Reconcile with AKS", func(t *testing.T) {
-		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-aks",
-				Namespace: "default",
-			},
-			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
-				Type: "aks",
-				AKS: &clustersv1alpha1.AKS{
-					SubscriptionID: "subscription-123",
-				},
-				Interval: metav1.Duration{Duration: time.Minute},
-			},
-		}
+		aksCluster := newAutomatedClusterDiscovery("test-aks",
+			aksProviderOption("subscription-123"))
 
 		testProvider := stubProvider{
 			response: []*providers.ProviderCluster{
@@ -94,12 +84,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			AKSProvider: func(providerID string) providers.Provider {
-				return &testProvider
-			},
-			EventRecorder: &mockEventRecorder{},
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: testProviderFactory(&testProvider),
+			EventRecorder:   &mockEventRecorder{},
 		}
 
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
@@ -168,24 +156,13 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			"test.example.com/annotation": "test",
 			"example.com/test":            "annotation",
 		}
-
-		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-aks",
-				Namespace: "default",
-			},
-			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
-				Type: "aks",
-				AKS: &clustersv1alpha1.AKS{
-					SubscriptionID: "subscription-123",
-				},
-				Interval: metav1.Duration{Duration: time.Minute},
-				CommonLabels: map[string]string{
+		aksCluster := newAutomatedClusterDiscovery("test-aks",
+			aksProviderOption("subscription-123"),
+			commonLabels(
+				map[string]string{
 					"example.com/label": "test",
 				},
-				CommonAnnotations: wantAnnotations,
-			},
-		}
+			), commonAnnotations(wantAnnotations))
 
 		testProvider := stubProvider{
 			response: []*providers.ProviderCluster{
@@ -205,12 +182,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			AKSProvider: func(providerID string) providers.Provider {
-				return &testProvider
-			},
-			EventRecorder: &mockEventRecorder{},
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: testProviderFactory(&testProvider),
+			EventRecorder:   &mockEventRecorder{},
 		}
 
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
@@ -252,19 +227,8 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 	})
 
 	t.Run("Reconcile with cluster labels applies labels to generated cluster", func(t *testing.T) {
-		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-aks",
-				Namespace: "default",
-			},
-			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
-				Type: "aks",
-				AKS: &clustersv1alpha1.AKS{
-					SubscriptionID: "subscription-123",
-				},
-				Interval: metav1.Duration{Duration: time.Minute},
-			},
-		}
+		aksCluster := newAutomatedClusterDiscovery("test-aks",
+			aksProviderOption("subscription-123"))
 
 		testProvider := stubProvider{
 			response: []*providers.ProviderCluster{
@@ -287,12 +251,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			AKSProvider: func(providerID string) providers.Provider {
-				return &testProvider
-			},
-			EventRecorder: &mockEventRecorder{},
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: testProviderFactory(&testProvider),
+			EventRecorder:   &mockEventRecorder{},
 		}
 
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
@@ -335,20 +297,11 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 	})
 
 	t.Run("Reconcile with cluster labels does not apply labels to cluster when tags disabled", func(t *testing.T) {
-		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-aks-disabled-tags",
-				Namespace: "default",
-			},
-			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
-				Type:        "aks",
-				DisableTags: true,
-				AKS: &clustersv1alpha1.AKS{
-					SubscriptionID: "subscription-123",
-				},
-				Interval: metav1.Duration{Duration: time.Minute},
-			},
-		}
+		aksCluster := newAutomatedClusterDiscovery("test-aks-disabled-tags",
+			aksProviderOption("subscription-123"),
+			func(a *clustersv1alpha1.AutomatedClusterDiscovery) {
+				a.Spec.DisableTags = true
+			})
 
 		testProvider := stubProvider{
 			response: []*providers.ProviderCluster{
@@ -371,12 +324,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			AKSProvider: func(providerID string) providers.Provider {
-				return &testProvider
-			},
-			EventRecorder: &mockEventRecorder{},
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: testProviderFactory(&testProvider),
+			EventRecorder:   &mockEventRecorder{},
 		}
 
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
@@ -417,19 +368,8 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 	})
 
 	t.Run("Reconcile when executing in cluster and cluster matches reflector cluster", func(t *testing.T) {
-		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-aks",
-				Namespace: "default",
-			},
-			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
-				Type: "aks",
-				AKS: &clustersv1alpha1.AKS{
-					SubscriptionID: "subscription-123",
-				},
-				Interval: metav1.Duration{Duration: time.Minute},
-			},
-		}
+		aksCluster := newAutomatedClusterDiscovery("test-aks-disabled-tags",
+			aksProviderOption("subscription-123"))
 		testClusterID := "/subscriptions/ace37984-aaaa-1234-1234-a1a12c0ae14b/resourcegroups/team-pesto-use1/providers/Microsoft.ContainerService/managedClusters/test-cluster"
 
 		testProvider := stubProvider{
@@ -452,12 +392,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			AKSProvider: func(providerID string) providers.Provider {
-				return &testProvider
-			},
-			EventRecorder: &mockEventRecorder{},
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: testProviderFactory(&testProvider),
+			EventRecorder:   &mockEventRecorder{},
 		}
 
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
@@ -486,19 +424,8 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 
 	t.Run("Reconcile when cluster has been removed from AKS", func(t *testing.T) {
 		ctx := context.TODO()
-		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-aks",
-				Namespace: "default",
-			},
-			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
-				Type: "aks",
-				AKS: &clustersv1alpha1.AKS{
-					SubscriptionID: "subscription-123",
-				},
-				Interval: metav1.Duration{Duration: time.Minute},
-			},
-		}
+		aksCluster := newAutomatedClusterDiscovery("test-aks-disabled-tags",
+			aksProviderOption("subscription-123"))
 
 		err := k8sClient.Create(ctx, aksCluster)
 		assert.NoError(t, err)
@@ -526,12 +453,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			AKSProvider: func(providerID string) providers.Provider {
-				return &testProvider
-			},
-			EventRecorder: &mockEventRecorder{},
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: testProviderFactory(&testProvider),
+			EventRecorder:   &mockEventRecorder{},
 		}
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
 
@@ -556,19 +481,8 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 
 	t.Run("Reconcile updates Secret value for existing clusters", func(t *testing.T) {
 		ctx := context.TODO()
-		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-aks",
-				Namespace: "default",
-			},
-			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
-				Type: "aks",
-				AKS: &clustersv1alpha1.AKS{
-					SubscriptionID: "subscription-123",
-				},
-				Interval: metav1.Duration{Duration: time.Minute},
-			},
-		}
+		aksCluster := newAutomatedClusterDiscovery("test-aks-disabled-tags",
+			aksProviderOption("subscription-123"))
 
 		err := k8sClient.Create(ctx, aksCluster)
 		assert.NoError(t, err)
@@ -598,12 +512,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			AKSProvider: func(providerID string) providers.Provider {
-				return &testProvider
-			},
-			EventRecorder: &mockEventRecorder{},
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: testProviderFactory(&testProvider),
+			EventRecorder:   &mockEventRecorder{},
 		}
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
 
@@ -632,20 +544,11 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 
 	t.Run("Reconcile suspended cluster discovery resource", func(t *testing.T) {
 		ctx := context.TODO()
-		aksCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-aks",
-				Namespace: "default",
-			},
-			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
-				Type: "aks",
-				AKS: &clustersv1alpha1.AKS{
-					SubscriptionID: "subscription-123",
-				},
-				Interval: metav1.Duration{Duration: time.Minute},
-				Suspend:  true,
-			},
-		}
+		aksCluster := newAutomatedClusterDiscovery("test-aks-disabled-tags",
+			aksProviderOption("subscription-123"),
+			func(a *clustersv1alpha1.AutomatedClusterDiscovery) {
+				a.Spec.Suspend = true
+			})
 
 		testProvider := stubProvider{
 			response: []*providers.ProviderCluster{
@@ -665,12 +568,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			AKSProvider: func(providerID string) providers.Provider {
-				return &testProvider
-			},
-			EventRecorder: &mockEventRecorder{},
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: testProviderFactory(&testProvider),
+			EventRecorder:   &mockEventRecorder{},
 		}
 
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
@@ -730,12 +631,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			AKSProvider: func(providerID string) providers.Provider {
-				return &testProvider
-			},
-			EventRecorder: &mockEventRecorder{},
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: testProviderFactory(&testProvider),
+			EventRecorder:   &mockEventRecorder{},
 		}
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
 
@@ -798,11 +697,9 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			AKSProvider: func(providerID string) providers.Provider {
-				return &testProvider
-			},
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: testProviderFactory(&testProvider),
 		}
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
 
@@ -869,12 +766,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		mockEventRecorder := &mockEventRecorder{}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			AKSProvider: func(providerID string) providers.Provider {
-				return &testProvider
-			},
-			EventRecorder: mockEventRecorder,
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: testProviderFactory(&testProvider),
+			EventRecorder:   mockEventRecorder,
 		}
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
 
@@ -945,12 +840,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		}
 
 		reconciler := &AutomatedClusterDiscoveryReconciler{
-			Client: k8sClient,
-			Scheme: scheme,
-			CAPIProvider: func(capiclient client.Client, namespace string, managementClusterRef *clustersv1alpha1.Cluster) providers.Provider {
-				return &testProvider
-			},
-			EventRecorder: &mockEventRecorder{},
+			Client:          k8sClient,
+			Scheme:          scheme,
+			EventRecorder:   &mockEventRecorder{},
+			ProviderFactory: testProviderFactory(&testProvider),
 		}
 
 		assert.NoError(t, reconciler.SetupWithManager(mgr))
@@ -1014,6 +907,40 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assertHasOwnerReference(t, secret, clusterRef)
 	})
 
+	t.Run("Reconcile with missing configuration for type", func(t *testing.T) {
+		reconciler := &AutomatedClusterDiscoveryReconciler{
+			Client:          k8sClient,
+			Scheme:          scheme,
+			ProviderFactory: DefaultProviderFactory,
+			EventRecorder:   &mockEventRecorder{},
+		}
+		assert.NoError(t, reconciler.SetupWithManager(mgr))
+
+		typeTests := []struct {
+			discoveryType string
+			wantErr       string
+		}{
+			{"aks", "discovery .spec.type = aks but no AKS configuration provided"},
+			{"eks", "discovery .spec.type = eks but no EKS configuration provided"},
+		}
+
+		for _, tt := range typeTests {
+			t.Run(fmt.Sprintf("type %s", tt.discoveryType), func(t *testing.T) {
+				aksCluster := newAutomatedClusterDiscovery("test-aks",
+					func(a *clustersv1alpha1.AutomatedClusterDiscovery) {
+						a.Spec.Type = tt.discoveryType
+					})
+
+				ctx := context.TODO()
+				err = k8sClient.Create(ctx, aksCluster)
+				assert.NoError(t, err)
+				defer deleteClusterDiscoveryAndInventory(t, k8sClient, aksCluster)
+
+				_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(aksCluster)})
+				assert.ErrorContains(t, err, tt.wantErr)
+			})
+		}
+	})
 }
 
 func TestReconcilingWithAnnotationChange(t *testing.T) {
@@ -1065,12 +992,10 @@ func TestReconcilingWithAnnotationChange(t *testing.T) {
 	defer deleteClusterDiscoveryAndInventory(t, k8sClient, aksCluster)
 
 	reconciler := &AutomatedClusterDiscoveryReconciler{
-		Client: k8sClient,
-		Scheme: scheme,
-		AKSProvider: func(providerID string) providers.Provider {
-			return &stubProvider{}
-		},
-		EventRecorder: &mockEventRecorder{},
+		Client:          k8sClient,
+		Scheme:          scheme,
+		ProviderFactory: testProviderFactory(&stubProvider{}),
+		EventRecorder:   &mockEventRecorder{},
 	}
 	assert.NoError(t, reconciler.SetupWithManager(mgr))
 
@@ -1240,4 +1165,49 @@ func isOwnerReferenceEqual(a, b metav1.OwnerReference) bool {
 		(a.Kind == b.Kind) &&
 		(a.Name == b.Name) &&
 		(a.UID == b.UID)
+}
+
+func aksProviderOption(subscriptionID string) func(*clustersv1alpha1.AutomatedClusterDiscovery) {
+	return func(acd *clustersv1alpha1.AutomatedClusterDiscovery) {
+		acd.Spec.Type = "aks"
+		acd.Spec.AKS = &clustersv1alpha1.AKS{
+			SubscriptionID: subscriptionID,
+		}
+	}
+}
+
+func commonLabels(labels map[string]string) func(*clustersv1alpha1.AutomatedClusterDiscovery) {
+	return func(acd *clustersv1alpha1.AutomatedClusterDiscovery) {
+		acd.Spec.CommonLabels = labels
+	}
+}
+
+func commonAnnotations(annotations map[string]string) func(*clustersv1alpha1.AutomatedClusterDiscovery) {
+	return func(acd *clustersv1alpha1.AutomatedClusterDiscovery) {
+		acd.Spec.CommonAnnotations = annotations
+	}
+}
+
+func newAutomatedClusterDiscovery(name string, opts ...func(*clustersv1alpha1.AutomatedClusterDiscovery)) *clustersv1alpha1.AutomatedClusterDiscovery {
+	discovery := &clustersv1alpha1.AutomatedClusterDiscovery{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "default",
+		},
+		Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
+			Interval: metav1.Duration{Duration: time.Minute},
+		},
+	}
+
+	for _, opt := range opts {
+		opt(discovery)
+	}
+
+	return discovery
+}
+
+func testProviderFactory(tp *stubProvider) providerFactoryFunc {
+	return func(client.Reader, *clustersv1alpha1.AutomatedClusterDiscovery) (providers.Provider, error) {
+		return tp, nil
+	}
 }
