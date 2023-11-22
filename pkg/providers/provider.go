@@ -31,4 +31,10 @@ type ProviderCluster struct {
 	// This is likely to be a high privilege token.
 	// The token MUST NOT require the execution of a binary (ExecConfig).
 	KubeConfig *api.Config
+
+	// Labels are labels to be applied to the generated Cluster.
+	//
+	// The could be generated from Labels or Tags on the API representation of
+	// the source Cluster.
+	Labels map[string]string
 }
