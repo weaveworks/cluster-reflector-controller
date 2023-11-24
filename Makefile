@@ -179,7 +179,7 @@ $(ENVTEST): $(LOCALBIN)
 .PHONY: helmify
 helmify: $(HELMIFY)
 $(HELMIFY): $(LOCALBIN)
-	GOBIN=$(LOCALBIN) go install github.com/arttor/helmify/cmd/helmify@v0.4.3
+	GOBIN=$(LOCALBIN) go install github.com/arttor/helmify/cmd/helmify@v0.4.10
 
 .PHONY: helm
 helm: manifests kustomize helmify
