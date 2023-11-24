@@ -163,6 +163,46 @@ The Cluster Bootstrap Controller allows you to run jobs against a `GitopsCluster
 
 Its often used to run `flux bootstrap` on a new cluster to install flux and connect it to a Git Repository.
 
+EXAMPLE
+
 ### GitOpsSets controller
 
 GitOpsSets allow you to generate resources based on what `GitopsCluster`s are present.
+
+If we tag our AKS/EKS cluster with `wego-admin-rbac: enabled` in the Azure portal or AWS Console, then the Cluster Reflector will create a GitopsCluster with that label.
+
+We can then create a GitOpsSet that will generate a Kustomization for each cluster with the label `wego-admin-rbac: enabled`.
+
+In this example the kustomization loads a kustomization from a `clusters/bases` directory. This is often where we keep common RBAC / NetworkingPolicy.
+
+```yaml
+apiVersion: templates.weave.works/v1alpha1
+kind: GitOpsSet
+metadata:
+  name: gitopsset-cluster-wego-admin-rbac
+  namespace: default
+spec:
+  generators:
+    - cluster:
+        selector:
+          matchLabels:
+            wego-admin-rbac: enabled
+  templates:
+    - content:
+        apiVersion: kustomize.toolkit.fluxcd.io/v1
+        kind: Kustomization
+        metadata:
+          name: "{{ .Element.ClusterName }}-wego-admin-rbac"
+          namespace: default
+        spec:
+          interval: 10m0s
+          kubeConfig:
+            secretRef:
+              name: "{{ .Element.ClusterName }}-kubeconfig"
+          sourceRef:
+            kind: GitRepository
+            name: flux-system
+            namespace: flux-system
+          path: ./clusters/bases
+          prune: true
+```
