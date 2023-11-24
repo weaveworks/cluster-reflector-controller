@@ -4,7 +4,7 @@ Automatically connect your EKS, AKS and CAPI clusters to Weave Gitops Enterprise
 
 Weave GitOps Enterprise allows you to manage flux and other resources across multiple clusters.
 
-Clusters can be added manually with the `gitops connect cluster` command, here we will use the Cluster Reflector Controller to automatically connect your clusters to Weave Gitops Enterprise.
+Clusters can be added manually with the `gitops connect cluster` command, however with many clusters this can become expensive. Cluster Reflector Controller will add and remove clusters automatically based on the `AutomatedClusterDiscovery` resource.
 
 ## Provider support
 
