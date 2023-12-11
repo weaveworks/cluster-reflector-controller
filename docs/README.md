@@ -95,7 +95,7 @@ aks:
 
 ### Credentials
 
-For azure we use a service principal to authenticate with Azure APIs.
+For Azure AKS we use a [service principal](https://learn.microsoft.com/en-us/azure/aks/kubernetes-service-principal?tabs=azure-cli) to authenticate with Azure [APIs](https://learn.microsoft.com/en-us/rest/api/aks/managed-clusters/list?view=rest-aks-2023-08-01&tabs=HTTP).
 
 The steps are roughly:
 
