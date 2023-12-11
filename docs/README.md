@@ -99,7 +99,7 @@ For Azure AKS we use a [service principal](https://learn.microsoft.com/en-us/azu
 
 The steps are roughly:
 
-- Create a service principal with the `Contributor` role on the subscription
+- Create a [service principal with the `Contributor`](https://learn.microsoft.com/en-us/azure/aks/kubernetes-service-principal?tabs=azure-cli#delegate-access-to-other-azure-resources) role on the subscription
 - Create a secret with the service principal credentials
 
   ```
