@@ -26,6 +26,7 @@ import (
 	gitopsv1alpha1 "github.com/weaveworks/cluster-controller/api/v1alpha1"
 	clustersv1alpha1 "github.com/weaveworks/cluster-reflector-controller/api/v1alpha1"
 	"github.com/weaveworks/cluster-reflector-controller/pkg/providers"
+	capiclusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 const testCAData = "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURJVENDQWdtZ0F3SUJBZ0lJWVZjd0NTS1ZRVVV3RFFZSktvWklodmNOQVFFTEJRQXdGVEVUTUJFR0ExVUUKQXhNS2EzVmlaWEp1WlhSbGN6QWVGdzB5TWpBMk1qTXlNRE0zTlRoYUZ3MHlNekEyTWpNeU1ETTRNREJhTURReApGekFWQmdOVkJBb1REbk41YzNSbGJUcHRZWE4wWlhKek1Sa3dGd1lEVlFRREV4QnJkV0psY201bGRHVnpMV0ZrCmJXbHVNSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQTMyZHBtRmlMdVFMSlZYUUYKdS9FamhuendPZmVSK3lvazkvMTJENzlEZ1U1OVVjTUVZQ2R1QzZhODVicUhxRXFiVnU2UUdrSFdmUHE4N0FIVApqMnQvM1kxVVprZ0hEOUtBWDZtdldlWnlBV2tRRUlKaHB2UjRtQ3J1T00zTXdUTHpkZlcrS01xVVBHeUZZM1Y0CjZFTmpCQ3RtdVBSaVZ3ZitZZGVwUkpGRHBLZ3MwOHJoMWUvZ3M5VlJWRlBrakIwVVIraHFMLy9KSmJ1S2NyUlgKUE5nWnE2K2N0ajZVaE9lWlZqVXc3WFNXQXZQNjIwMDZmV1V2K2dJYTVaMTRCUUZCN0Q4amhmWlRHNTE0bE04SwpIOXVsWTZJUktpaXcwcjdwdDZZV091VTdBQ3pWdjFkV3ozVUF0WWluSk15RVVOUFpneHp2VFpWNk1jSVB0QisvCkNCMExEd0lEQVFBQm8xWXdWREFPQmdOVkhROEJBZjhFQkFNQ0JhQXdFd1lEVlIwbEJBd3dDZ1lJS3dZQkJRVUgKQXdJd0RBWURWUjBUQVFIL0JBSXdBREFmQmdOVkhTTUVHREFXZ0JUYXVnaWZneTMyYldGbWh5RjRyZlFRNkp2Ugp0akFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBRlVVV3IzS2tNcTBvaVBZcUE5UnVxNWdrTTEwM2hBV2FiQVBGCld5bjRWUmlkZGh2czgwbzR1bWJIN0xZSDdqSlBwdDRxZmR1VlNwLzdWRHFGakNvUkozQUtxd2EveU9vSDF2ZUIKYkVFQW1YQkM5clZEOUtjbVdrVzhtcC9xbFFqOFFvK1I3WFVCN3JxQTR2anJZVUQrYTg5NWFGb1oxTS9HWXpmTwptenNmaWJ6Y2o3RkZwWCtHOG94ZGkwWnY5eUx2WVFuTmU2aDFhWDgveGgzSmkyYlBjR3Y2aDR3RTFuaDdnV1JaClRHcTZzUFJyenlWSzdBc1Z2bk0wQ0tJTEpJN3k4cFB1S1BmajdBMTh6Uit5RDhvOXA2NmYxS2V0VnVaOUlOL1EKN1FoNUJRSXQwWk0xMi9iZ2ZoZDFxTWNrb2RoazF1eFFQSmVzZll1RzAxQ2dya3ZaZVE9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg=="
@@ -50,6 +51,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 	assert.NoError(t, clustersv1alpha1.AddToScheme(scheme))
 	assert.NoError(t, gitopsv1alpha1.AddToScheme(scheme))
 	assert.NoError(t, clientgoscheme.AddToScheme(scheme))
+	assert.NoError(t, capiclusterv1.AddToScheme(scheme))
 
 	k8sClient, err := client.New(cfg, client.Options{Scheme: scheme})
 	assert.NoError(t, err)
@@ -141,7 +143,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 
 		assertInventoryHasItems(t, aksCluster,
 			newSecret(client.ObjectKeyFromObject(secret)),
-			newGitopsCluster(secret.GetName(), client.ObjectKeyFromObject(gitopsCluster)))
+			newGitopsCluster(client.ObjectKeyFromObject(gitopsCluster)))
 		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "1 clusters discovered")
 
 		discoveryRef := metav1.OwnerReference{
@@ -503,7 +505,6 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		defer deleteClusterDiscoveryAndInventory(t, k8sClient, aksCluster)
 
 		gitopsCluster := newGitopsCluster(
-			"cluster-1-kubeconfig",
 			types.NamespacedName{Name: "cluster-1", Namespace: "default"},
 		)
 
@@ -574,7 +575,6 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		defer deleteClusterDiscoveryAndInventory(t, k8sClient, aksCluster)
 
 		gitopsCluster := newGitopsCluster(
-			"cluster-1-kubeconfig",
 			types.NamespacedName{Name: "cluster-1", Namespace: "default"},
 		)
 
@@ -746,7 +746,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assert.NoError(t, err)
 
 		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: aksCluster.GetNamespace()})
-		gitopsCluster := newGitopsCluster(secret.GetName(), types.NamespacedName{Name: "cluster-1", Namespace: aksCluster.GetNamespace()})
+		gitopsCluster := newGitopsCluster(types.NamespacedName{Name: "cluster-1", Namespace: aksCluster.GetNamespace()})
 		assertInventoryHasItems(t, aksCluster, secret, gitopsCluster)
 		assertAutomatedClusterDiscoveryCondition(t, aksCluster, meta.ReadyCondition, "1 clusters discovered")
 
@@ -885,7 +885,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assert.NoError(t, err)
 
 		secret := newSecret(types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: aksCluster.GetNamespace()})
-		gitopsCluster := newGitopsCluster(secret.GetName(), types.NamespacedName{Name: "cluster-1", Namespace: aksCluster.GetNamespace()})
+		gitopsCluster := newGitopsCluster(types.NamespacedName{Name: "cluster-1", Namespace: aksCluster.GetNamespace()})
 		assertInventoryHasItems(t, aksCluster, secret, gitopsCluster)
 
 		assert.Equal(t, "Normal", mockEventRecorder.CapturedType)
@@ -905,6 +905,103 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assert.Equal(t, "Normal", mockEventRecorder.CapturedType)
 		assert.Equal(t, "ClusterRemoved", mockEventRecorder.CapturedReason)
 		assert.Equal(t, "Cluster cluster-1 removed", mockEventRecorder.CapturedMessage)
+	})
+
+	t.Run("Reconcile with CAPI", func(t *testing.T) {
+		capiCluster := &clustersv1alpha1.AutomatedClusterDiscovery{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-capi",
+				Namespace: "default",
+			},
+			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
+				Type:     "capi",
+				CAPI:     &clustersv1alpha1.CAPI{},
+				Interval: metav1.Duration{Duration: time.Minute},
+			},
+		}
+
+		testProvider := stubProvider{
+			response: []*providers.ProviderCluster{
+				{
+					Name: "cluster-1",
+					KubeConfig: &kubeconfig.Config{
+						APIVersion: "v1",
+						Clusters: map[string]*kubeconfig.Cluster{
+							"cluster-1": {},
+						},
+					},
+				},
+			},
+		}
+
+		reconciler := &AutomatedClusterDiscoveryReconciler{
+			Client: k8sClient,
+			Scheme: scheme,
+			CAPIProvider: func(capiclient client.Client) providers.Provider {
+				return &testProvider
+			},
+			EventRecorder: &mockEventRecorder{},
+		}
+
+		assert.NoError(t, reconciler.SetupWithManager(mgr))
+
+		ctx := context.TODO()
+		key := types.NamespacedName{Name: capiCluster.Name, Namespace: capiCluster.Namespace}
+		err = k8sClient.Create(ctx, capiCluster)
+		assert.NoError(t, err)
+		defer deleteClusterDiscoveryAndInventory(t, k8sClient, capiCluster)
+
+		result, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
+		assert.NoError(t, err)
+		assert.Equal(t, ctrl.Result{RequeueAfter: time.Minute}, result)
+
+		wantLabels := map[string]string{
+			"app.kubernetes.io/managed-by":          "cluster-reflector-controller",
+			"clusters.weave.works/origin-name":      "test-capi",
+			"clusters.weave.works/origin-namespace": "default",
+			"clusters.weave.works/origin-type":      "capi",
+		}
+
+		gitopsCluster := &gitopsv1alpha1.GitopsCluster{}
+		err = k8sClient.Get(ctx, types.NamespacedName{Name: "cluster-1", Namespace: capiCluster.Namespace}, gitopsCluster)
+		assert.NoError(t, err)
+		assert.Equal(t, gitopsv1alpha1.GitopsClusterSpec{
+			CAPIClusterRef: &meta.LocalObjectReference{Name: "cluster-1"},
+		}, gitopsCluster.Spec)
+		assertHasLabels(t, gitopsCluster, wantLabels)
+
+		secret := &corev1.Secret{}
+		err = k8sClient.Get(ctx, types.NamespacedName{Name: "cluster-1-kubeconfig", Namespace: capiCluster.Namespace}, secret)
+		assert.NoError(t, err)
+		assertHasLabels(t, secret, wantLabels)
+
+		value, err := clientcmd.Write(*testProvider.response[0].KubeConfig)
+		assert.NoError(t, err)
+		assert.Equal(t, value, secret.Data["value"])
+
+		err = k8sClient.Get(ctx, client.ObjectKeyFromObject(capiCluster), capiCluster)
+		assert.NoError(t, err)
+
+		assertInventoryHasItems(t, capiCluster,
+			newSecret(client.ObjectKeyFromObject(secret)),
+			newGitopsCluster(client.ObjectKeyFromObject(gitopsCluster)))
+		assertAutomatedClusterDiscoveryCondition(t, capiCluster, meta.ReadyCondition, "1 clusters discovered")
+
+		discoveryRef := metav1.OwnerReference{
+			Kind:       "AutomatedClusterDiscovery",
+			APIVersion: "clusters.weave.works/v1alpha1",
+			Name:       capiCluster.Name,
+			UID:        capiCluster.UID,
+		}
+		assertHasOwnerReference(t, gitopsCluster, discoveryRef)
+
+		clusterRef := metav1.OwnerReference{
+			Kind:       "GitopsCluster",
+			APIVersion: "gitops.weave.works/v1alpha1",
+			Name:       gitopsCluster.Name,
+			UID:        gitopsCluster.UID,
+		}
+		assertHasOwnerReference(t, secret, clusterRef)
 	})
 
 }
