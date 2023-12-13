@@ -273,7 +273,6 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		gitopsCluster.SetAnnotations(mergeMaps(acd.Spec.CommonAnnotations, map[string]string{
 			gitopsv1alpha1.GitOpsClusterNoSecretFinalizerAnnotation: "true",
 		}))
-		// gitopscluster , for capi cluster we use capisecret ref instead of secret ref {CAPIClusterRef:cluster.Name}
 		_, err = controllerutil.CreateOrPatch(ctx, r.Client, gitopsCluster, func() error {
 			if acd.Spec.Type == "aks" {
 				gitopsCluster.Spec = gitopsv1alpha1.GitopsClusterSpec{
