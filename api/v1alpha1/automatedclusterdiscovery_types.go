@@ -28,13 +28,17 @@ type AKS struct {
 	SubscriptionID string `json:"subscriptionID"`
 }
 
+// CAPI defines the desired state of CAPI, TBD
+type CAPI struct {
+}
+
 // AutomatedClusterDiscoverySpec defines the desired state of AutomatedClusterDiscovery
 type AutomatedClusterDiscoverySpec struct {
 	// Name is the name of the cluster
 	Name string `json:"name,omitempty"`
 
 	// Type is the provider type.
-	// +kubebuilder:validation:Enum=aks
+	// +kubebuilder:validation:Enum=aks;capi
 	Type string `json:"type"`
 
 	// If DisableTags is true, labels will not be applied to the generated
@@ -43,6 +47,8 @@ type AutomatedClusterDiscoverySpec struct {
 	DisableTags bool `json:"disableTags"`
 
 	AKS *AKS `json:"aks,omitempty"`
+
+	CAPI *CAPI `json:"capi,omitempty"`
 
 	// The interval at which to run the discovery
 	// +required

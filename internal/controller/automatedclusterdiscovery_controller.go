@@ -54,7 +54,8 @@ type AutomatedClusterDiscoveryReconciler struct {
 	Scheme        *runtime.Scheme
 	EventRecorder eventRecorder
 
-	AKSProvider func(string) providers.Provider
+	AKSProvider  func(string) providers.Provider
+	CAPIProvider func(client.Client) providers.Provider
 }
 
 // event emits a Kubernetes event and forwards the event to the event recorder
@@ -173,6 +174,19 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileResources(ctx context.Con
 
 			return nil, err
 		}
+	} else if cd.Spec.Type == "capi" {
+		logger.Info("reconciling CAPI cluster reflector",
+			"name", cd.Spec.Name,
+		)
+
+		capiProvider := r.CAPIProvider(r.Client)
+
+		clusters, err = capiProvider.ListClusters(ctx)
+		if err != nil {
+			logger.Error(err, "failed to list CAPI clusters")
+			return nil, err
+		}
+
 	}
 
 	// TODO: Fix this so that we record the inventoryRefs even if we get an
@@ -230,7 +244,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		}
 		secretName := fmt.Sprintf("%s-kubeconfig", cluster.Name)
 
-		gitopsCluster := newGitopsCluster(secretName, types.NamespacedName{
+		gitopsCluster := newGitopsCluster(types.NamespacedName{
 			Name:      cluster.Name,
 			Namespace: acd.Namespace,
 		})
@@ -259,12 +273,20 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 		gitopsCluster.SetAnnotations(mergeMaps(acd.Spec.CommonAnnotations, map[string]string{
 			gitopsv1alpha1.GitOpsClusterNoSecretFinalizerAnnotation: "true",
 		}))
-
+		// gitopscluster , for capi cluster we use capisecret ref instead of secret ref {CAPIClusterRef:cluster.Name}
 		_, err = controllerutil.CreateOrPatch(ctx, r.Client, gitopsCluster, func() error {
-			gitopsCluster.Spec = gitopsv1alpha1.GitopsClusterSpec{
-				SecretRef: &meta.LocalObjectReference{
-					Name: secretName,
-				},
+			if acd.Spec.Type == "aks" {
+				gitopsCluster.Spec = gitopsv1alpha1.GitopsClusterSpec{
+					SecretRef: &meta.LocalObjectReference{
+						Name: secretName,
+					},
+				}
+			} else if acd.Spec.Type == "capi" {
+				gitopsCluster.Spec = gitopsv1alpha1.GitopsClusterSpec{
+					CAPIClusterRef: &meta.LocalObjectReference{
+						Name: cluster.Name,
+					},
+				}
 			}
 
 			return nil
@@ -382,7 +404,7 @@ func (r *AutomatedClusterDiscoveryReconciler) patchStatus(ctx context.Context, r
 	return r.Status().Patch(ctx, &set, patch)
 }
 
-func newGitopsCluster(secretName string, name types.NamespacedName) *gitopsv1alpha1.GitopsCluster {
+func newGitopsCluster(name types.NamespacedName) *gitopsv1alpha1.GitopsCluster {
 	return &gitopsv1alpha1.GitopsCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "GitopsCluster",

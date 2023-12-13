@@ -52,6 +52,8 @@ spec:
                 required:
                 - subscriptionID
                 type: object
+              capi:
+                type: object
               commonAnnotations:
                 additionalProperties:
                   type: string
@@ -80,6 +82,7 @@ spec:
                 description: Type is the provider type.
                 enum:
                 - aks
+                - capi
                 type: string
             required:
             - interval
