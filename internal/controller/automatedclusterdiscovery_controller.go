@@ -348,21 +348,23 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 			return inventoryResources, fmt.Errorf("failed to load GitopsCluster for update: %w", err)
 		}
 
-		secretToUpdate := &corev1.Secret{}
-		if err := r.Client.Get(ctx, types.NamespacedName{Name: existingCluster.Spec.SecretRef.Name, Namespace: acd.GetNamespace()}, secretToUpdate); err != nil {
-			// TODO: don't error, create a new secret!
-			return inventoryResources, fmt.Errorf("failed to get the secret to update: %w", err)
-		}
+		if existingCluster.Spec.SecretRef != nil {
+			secretToUpdate := &corev1.Secret{}
+			if err := r.Client.Get(ctx, types.NamespacedName{Name: existingCluster.Spec.SecretRef.Name, Namespace: acd.GetNamespace()}, secretToUpdate); err != nil {
+				// TODO: don't error, create a new secret!
+				return inventoryResources, fmt.Errorf("failed to get the secret to update: %w", err)
+			}
 
-		cluster := clusterMapping[existingCluster.GetName()]
-		value, err := clientcmd.Write(*cluster.KubeConfig)
-		if err != nil {
-			return inventoryResources, err
-		}
-		secretToUpdate.Data["value"] = value
-		// TODO: Patch!
-		if err := r.Client.Update(ctx, secretToUpdate); err != nil {
-			return inventoryResources, err
+			cluster := clusterMapping[existingCluster.GetName()]
+			value, err := clientcmd.Write(*cluster.KubeConfig)
+			if err != nil {
+				return inventoryResources, err
+			}
+			secretToUpdate.Data["value"] = value
+			// TODO: Patch!
+			if err := r.Client.Update(ctx, secretToUpdate); err != nil {
+				return inventoryResources, err
+			}
 		}
 	}
 
