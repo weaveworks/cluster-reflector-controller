@@ -905,6 +905,12 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		assert.Equal(t, "Normal", mockEventRecorder.CapturedType)
 		assert.Equal(t, "ClusterRemoved", mockEventRecorder.CapturedReason)
 		assert.Equal(t, "Cluster cluster-1 removed", mockEventRecorder.CapturedMessage)
+
+		if err := k8sClient.Delete(ctx, secret); err != nil {
+			t.Fatal(err)
+		}
+		assert.NoError(t, client.IgnoreNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(secret), secret)))
+
 	})
 
 	t.Run("Reconcile with CAPI", func(t *testing.T) {
