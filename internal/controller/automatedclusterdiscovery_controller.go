@@ -296,40 +296,18 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 
 		inventoryResources = append(inventoryResources, clusterRef)
 
-		secret := newSecret(types.NamespacedName{
-			Name:      secretName,
-			Namespace: acd.Namespace,
-		})
+		if cluster.KubeConfig != nil {
+			secretRef, err := r.createSecret(ctx, secretName, acd.Namespace, gitopsCluster, acd, cluster)
+			if err != nil {
+				return inventoryResources, err
+			}
 
-		secretRef, err := clustersv1alpha1.ResourceRefFromObject(secret)
-		if err != nil {
-			return inventoryResources, err
-		}
-
-		logger.Info("creating secret", "name", secret.GetName())
-		if err := controllerutil.SetOwnerReference(gitopsCluster, secret, r.Scheme); err != nil {
-			return inventoryResources, fmt.Errorf("failed to set ownership on created Secret: %w", err)
+			inventoryResources = append(inventoryResources, *secretRef)
 		}
 
 		// publish event for ClusterCreated
 		r.event(acd, corev1.EventTypeNormal, "ClusterCreated", fmt.Sprintf("Cluster %s created", cluster.Name))
 
-		secret.SetLabels(labelsForResource(*acd))
-		secret.SetAnnotations(acd.Spec.CommonAnnotations)
-		_, err = controllerutil.CreateOrPatch(ctx, r.Client, secret, func() error {
-			value, err := clientcmd.Write(*cluster.KubeConfig)
-			if err != nil {
-				return err
-			}
-			secret.Data["value"] = value
-
-			return nil
-		})
-		if err != nil {
-			return inventoryResources, err
-		}
-
-		inventoryResources = append(inventoryResources, secretRef)
 	}
 
 	if acd.Status.Inventory != nil {
@@ -401,6 +379,44 @@ func (r *AutomatedClusterDiscoveryReconciler) patchStatus(ctx context.Context, r
 	set.Status = newStatus
 
 	return r.Status().Patch(ctx, &set, patch)
+}
+
+func (r *AutomatedClusterDiscoveryReconciler) createSecret(ctx context.Context, secretName, namespace string, gitopsCluster *gitopsv1alpha1.GitopsCluster, acd *clustersv1alpha1.AutomatedClusterDiscovery, cluster *providers.ProviderCluster) (*clustersv1alpha1.ResourceRef, error) {
+	logger := log.FromContext(ctx)
+	secret := newSecret(types.NamespacedName{
+		Name:      secretName,
+		Namespace: namespace,
+	})
+
+	secretRef, err := clustersv1alpha1.ResourceRefFromObject(secret)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("creating secret", "name", secret.GetName())
+	if err := controllerutil.SetOwnerReference(gitopsCluster, secret, r.Scheme); err != nil {
+		return nil, fmt.Errorf("failed to set ownership on created Secret: %w", err)
+	}
+
+	secret.SetLabels(labelsForResource(*acd))
+	secret.SetAnnotations(acd.Spec.CommonAnnotations)
+
+	// publish event for ClusterCreated
+	r.event(acd, corev1.EventTypeNormal, "ClusterCreated", fmt.Sprintf("Cluster %s created", cluster.Name))
+	_, err = controllerutil.CreateOrPatch(ctx, r.Client, secret, func() error {
+		value, err := clientcmd.Write(*cluster.KubeConfig)
+		if err != nil {
+			return err
+		}
+		secret.Data["value"] = value
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &secretRef, nil
 }
 
 func newGitopsCluster(name types.NamespacedName) *gitopsv1alpha1.GitopsCluster {

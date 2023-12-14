@@ -53,6 +53,7 @@ spec:
                 - subscriptionID
                 type: object
               capi:
+                description: CAPI defines the desired state of CAPI, TBD
                 type: object
               commonAnnotations:
                 additionalProperties:
