@@ -14,6 +14,7 @@ type CAPIProvider struct {
 
 var _ providers.Provider = (*CAPIProvider)(nil)
 
+// NewCAPIProvider creates and returns a CAPIProvider ready for use
 func NewCAPIProvider(client client.Client) *CAPIProvider {
 	provider := &CAPIProvider{
 		Kubeclient: client,
@@ -36,13 +37,15 @@ func (p *CAPIProvider) ListClusters(ctx context.Context) ([]*providers.ProviderC
 			Name:       capiCluster.Name,
 			ID:         string(capiCluster.GetObjectMeta().GetUID()),
 			KubeConfig: nil,
+			Labels:     capiCluster.Labels,
 		})
-		// TODO: kubeconfig is in a secret in the namespace of the cluster called clustername-kubeconfig
 	}
 
 	return clusters, nil
 }
 
+// ProviderCluster has an ID to identify the cluster, but capi cluster doesn't have a Cluster ID
+// therefore wont't match in the case of CAPI
 func (p *CAPIProvider) ClusterID(ctx context.Context, kubeClient client.Reader) (string, error) {
 	return "", nil
 }
