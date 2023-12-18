@@ -37,6 +37,9 @@ type AutomatedClusterDiscoverySpec struct {
 	// Name is the name of the cluster
 	Name string `json:"name,omitempty"`
 
+	// Namespace of the cluster
+	Namespace string `json:"namespace,omitempty"`
+
 	// Type is the provider type.
 	// +kubebuilder:validation:Enum=aks;capi
 	Type string `json:"type"`

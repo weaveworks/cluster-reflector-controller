@@ -10,14 +10,16 @@ import (
 
 type CAPIProvider struct {
 	Kubeclient client.Client
+	Namespace  string
 }
 
 var _ providers.Provider = (*CAPIProvider)(nil)
 
 // NewCAPIProvider creates and returns a CAPIProvider ready for use
-func NewCAPIProvider(client client.Client) *CAPIProvider {
+func NewCAPIProvider(client client.Client, namespace string) *CAPIProvider {
 	provider := &CAPIProvider{
 		Kubeclient: client,
+		Namespace:  namespace,
 	}
 	return provider
 }
@@ -25,7 +27,7 @@ func NewCAPIProvider(client client.Client) *CAPIProvider {
 func (p *CAPIProvider) ListClusters(ctx context.Context) ([]*providers.ProviderCluster, error) {
 	kubeClient := p.Kubeclient
 	capiClusters := &capiclusterv1.ClusterList{}
-	err := kubeClient.List(ctx, capiClusters, &client.ListOptions{})
+	err := kubeClient.List(ctx, capiClusters, &client.ListOptions{Namespace: p.Namespace})
 	if err != nil {
 		return nil, err
 	}

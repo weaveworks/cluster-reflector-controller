@@ -55,7 +55,7 @@ type AutomatedClusterDiscoveryReconciler struct {
 	EventRecorder eventRecorder
 
 	AKSProvider  func(string) providers.Provider
-	CAPIProvider func(client.Client) providers.Provider
+	CAPIProvider func(client.Client, string) providers.Provider
 }
 
 // event emits a Kubernetes event and forwards the event to the event recorder
@@ -179,7 +179,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileResources(ctx context.Con
 			"name", cd.Spec.Name,
 		)
 
-		capiProvider := r.CAPIProvider(r.Client)
+		capiProvider := r.CAPIProvider(r.Client, cd.Namespace)
 
 		clusters, err = capiProvider.ListClusters(ctx)
 		if err != nil {

@@ -920,9 +920,10 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 				Namespace: "default",
 			},
 			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
-				Type:     "capi",
-				CAPI:     &clustersv1alpha1.CAPI{},
-				Interval: metav1.Duration{Duration: time.Minute},
+				Type:      "capi",
+				CAPI:      &clustersv1alpha1.CAPI{},
+				Interval:  metav1.Duration{Duration: time.Minute},
+				Namespace: "default",
 			},
 		}
 
@@ -943,7 +944,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		reconciler := &AutomatedClusterDiscoveryReconciler{
 			Client: k8sClient,
 			Scheme: scheme,
-			CAPIProvider: func(capiclient client.Client) providers.Provider {
+			CAPIProvider: func(capiclient client.Client, namespace string) providers.Provider {
 				return &testProvider
 			},
 			EventRecorder: &mockEventRecorder{},
