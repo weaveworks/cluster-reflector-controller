@@ -397,6 +397,7 @@ func (r *AutomatedClusterDiscoveryReconciler) createSecret(ctx context.Context, 
 
 	logger.Info("creating secret", "name", secret.GetName())
 	if err := controllerutil.SetOwnerReference(gitopsCluster, secret, r.Scheme); err != nil {
+		logger.Error(err, "failed to set ownership on created Secret")
 		return nil, fmt.Errorf("failed to set ownership on created Secret: %w", err)
 	}
 
@@ -406,11 +407,11 @@ func (r *AutomatedClusterDiscoveryReconciler) createSecret(ctx context.Context, 
 	// publish event for ClusterCreated
 	r.event(acd, corev1.EventTypeNormal, "ClusterCreated", fmt.Sprintf("Cluster %s created", cluster.Name))
 	_, err = controllerutil.CreateOrPatch(ctx, r.Client, secret, func() error {
-		value, err := clientcmd.Write(*cluster.KubeConfig)
-		if err != nil {
+		if value, err := clientcmd.Write(*cluster.KubeConfig); err != nil {
 			return err
+		} else {
+			secret.Data["value"] = value
 		}
-		secret.Data["value"] = value
 
 		return nil
 	})

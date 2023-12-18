@@ -28,7 +28,7 @@ type AKS struct {
 	SubscriptionID string `json:"subscriptionID"`
 }
 
-// CAPI defines the desired state of CAPI, TBD
+// CAPI defines the desired state of CAPI
 type CAPI struct {
 }
 
@@ -46,8 +46,10 @@ type AutomatedClusterDiscoverySpec struct {
 	// +optional
 	DisableTags bool `json:"disableTags"`
 
+	// AKS defines the desired state of AKS
 	AKS *AKS `json:"aks,omitempty"`
 
+	// CAPI defines the desired state of CAPI
 	CAPI *CAPI `json:"capi,omitempty"`
 
 	// The interval at which to run the discovery
