@@ -407,11 +407,12 @@ func (r *AutomatedClusterDiscoveryReconciler) createSecret(ctx context.Context, 
 	// publish event for ClusterCreated
 	r.event(acd, corev1.EventTypeNormal, "ClusterCreated", fmt.Sprintf("Cluster %s created", cluster.Name))
 	_, err = controllerutil.CreateOrPatch(ctx, r.Client, secret, func() error {
-		if value, err := clientcmd.Write(*cluster.KubeConfig); err != nil {
+		value, err := clientcmd.Write(*cluster.KubeConfig)
+		if err != nil {
 			return err
-		} else {
-			secret.Data["value"] = value
 		}
+
+		secret.Data["value"] = value
 
 		return nil
 	})
