@@ -42,7 +42,7 @@ type AutomatedClusterDiscoverySpec struct {
 	// +optional
 	DisableTags bool `json:"disableTags"`
 
-	// AKS defines the desired state of AKS
+	// AKS configures discovery of AKS clusters from Azure.
 	AKS *AKS `json:"aks,omitempty"`
 
 	// The interval at which to run the discovery
