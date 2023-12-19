@@ -28,17 +28,10 @@ type AKS struct {
 	SubscriptionID string `json:"subscriptionID"`
 }
 
-// CAPI defines the desired state of CAPI
-type CAPI struct {
-}
-
 // AutomatedClusterDiscoverySpec defines the desired state of AutomatedClusterDiscovery
 type AutomatedClusterDiscoverySpec struct {
 	// Name is the name of the cluster
 	Name string `json:"name,omitempty"`
-
-	// Namespace of the cluster
-	Namespace string `json:"namespace,omitempty"`
 
 	// Type is the provider type.
 	// +kubebuilder:validation:Enum=aks;capi
@@ -51,9 +44,6 @@ type AutomatedClusterDiscoverySpec struct {
 
 	// AKS defines the desired state of AKS
 	AKS *AKS `json:"aks,omitempty"`
-
-	// CAPI defines the desired state of CAPI
-	CAPI *CAPI `json:"capi,omitempty"`
 
 	// The interval at which to run the discovery
 	// +required

@@ -52,9 +52,6 @@ spec:
                 required:
                 - subscriptionID
                 type: object
-              capi:
-                description: CAPI defines the desired state of CAPI
-                type: object
               commonAnnotations:
                 additionalProperties:
                   type: string
@@ -74,9 +71,6 @@ spec:
                 type: string
               name:
                 description: Name is the name of the cluster
-                type: string
-              namespace:
-                description: Namespace of the cluster
                 type: string
               suspend:
                 description: Suspend tells the controller to suspend the reconciliation
