@@ -29,6 +29,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -37,6 +38,8 @@ import (
 	"github.com/weaveworks/cluster-reflector-controller/internal/controller"
 	"github.com/weaveworks/cluster-reflector-controller/pkg/providers"
 	"github.com/weaveworks/cluster-reflector-controller/pkg/providers/azure"
+	"github.com/weaveworks/cluster-reflector-controller/pkg/providers/capi"
+	capiclusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -51,6 +54,7 @@ func init() {
 
 	utilruntime.Must(gitopsv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(clustersv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(capiclusterv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -109,6 +113,9 @@ func main() {
 		EventRecorder: eventRecorder,
 		AKSProvider: func(subscriptionID string) providers.Provider {
 			return azure.NewAzureProvider(subscriptionID)
+		},
+		CAPIProvider: func(kubeclient client.Client, namespace string) providers.Provider {
+			return capi.NewCAPIProvider(kubeclient, namespace)
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AutomatedClusterDiscovery")

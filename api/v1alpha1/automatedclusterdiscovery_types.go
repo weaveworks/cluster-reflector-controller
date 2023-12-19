@@ -34,7 +34,7 @@ type AutomatedClusterDiscoverySpec struct {
 	Name string `json:"name,omitempty"`
 
 	// Type is the provider type.
-	// +kubebuilder:validation:Enum=aks
+	// +kubebuilder:validation:Enum=aks;capi
 	Type string `json:"type"`
 
 	// If DisableTags is true, labels will not be applied to the generated
@@ -42,6 +42,7 @@ type AutomatedClusterDiscoverySpec struct {
 	// +optional
 	DisableTags bool `json:"disableTags"`
 
+	// AKS configures discovery of AKS clusters from Azure.
 	AKS *AKS `json:"aks,omitempty"`
 
 	// The interval at which to run the discovery

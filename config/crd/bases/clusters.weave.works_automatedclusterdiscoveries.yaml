@@ -80,6 +80,7 @@ spec:
                 description: Type is the provider type.
                 enum:
                 - aks
+                - capi
                 type: string
             required:
             - interval

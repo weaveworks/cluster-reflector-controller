@@ -1,0 +1,8 @@
+apiVersion: clusters.weave.works/v1alpha1
+kind: AutomatedClusterDiscovery
+metadata:
+  name: capi-cluster-discovery
+  namespace: default
+spec:
+  type: capi
+  interval: 10m
