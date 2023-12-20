@@ -9,17 +9,19 @@ import (
 )
 
 type CAPIProvider struct {
-	Kubeclient client.Client
-	Namespace  string
+	Kubeclient            client.Client
+	Namespace             string
+	ManagementClusterName string
 }
 
 var _ providers.Provider = (*CAPIProvider)(nil)
 
 // NewCAPIProvider creates and returns a CAPIProvider ready for use
-func NewCAPIProvider(client client.Client, namespace string) *CAPIProvider {
+func NewCAPIProvider(client client.Client, namespace, managementClusterName string) *CAPIProvider {
 	provider := &CAPIProvider{
-		Kubeclient: client,
-		Namespace:  namespace,
+		Kubeclient:            client,
+		Namespace:             namespace,
+		ManagementClusterName: managementClusterName,
 	}
 	return provider
 }
@@ -35,9 +37,15 @@ func (p *CAPIProvider) ListClusters(ctx context.Context) ([]*providers.ProviderC
 	clusters := []*providers.ProviderCluster{}
 
 	for _, capiCluster := range capiClusters.Items {
+		var clusterID string
+		if capiCluster.Name == p.ManagementClusterName {
+			clusterID = capiCluster.Name + "/" + capiCluster.Namespace
+		} else {
+			clusterID = string(capiCluster.GetObjectMeta().GetUID())
+		}
 		clusters = append(clusters, &providers.ProviderCluster{
 			Name:       capiCluster.Name,
-			ID:         string(capiCluster.GetObjectMeta().GetUID()),
+			ID:         clusterID,
 			KubeConfig: nil,
 			Labels:     capiCluster.Labels,
 		})
@@ -49,5 +57,6 @@ func (p *CAPIProvider) ListClusters(ctx context.Context) ([]*providers.ProviderC
 // ProviderCluster has an ID to identify the cluster, but capi cluster doesn't have a Cluster ID
 // therefore wont't match in the case of CAPI
 func (p *CAPIProvider) ClusterID(ctx context.Context, kubeClient client.Reader) (string, error) {
-	return "", nil
+	return p.ManagementClusterName, nil
+	// return "", nil
 }

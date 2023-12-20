@@ -29,7 +29,7 @@ func TestClusterProvider_ListClusters(t *testing.T) {
 	}
 
 	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(clusters...).Build()
-	provider := NewCAPIProvider(client, "default")
+	provider := NewCAPIProvider(client, "default", "")
 
 	provided, err := provider.ListClusters(context.TODO())
 	if err != nil {

@@ -44,7 +44,7 @@ spec:
               AutomatedClusterDiscovery
             properties:
               aks:
-                description: AKS defines the desired state of AKS
+                description: AKS configures discovery of AKS clusters from Azure.
                 properties:
                   subscriptionID:
                     description: SubscriptionID is the Azure subscription ID
@@ -62,6 +62,9 @@ spec:
                   type: string
                 description: Labels to add to all generated resources.
                 type: object
+              currentClusterName:
+                description: Current Cluster name indicating the management cluster
+                type: string
               disableTags:
                 description: If DisableTags is true, labels will not be applied to
                   the generated Clusters from the tags on the upstream Clusters.

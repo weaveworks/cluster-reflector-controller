@@ -55,7 +55,7 @@ type AutomatedClusterDiscoveryReconciler struct {
 	EventRecorder eventRecorder
 
 	AKSProvider  func(string) providers.Provider
-	CAPIProvider func(client.Client, string) providers.Provider
+	CAPIProvider func(client.Client, string, string) providers.Provider
 }
 
 // event emits a Kubernetes event and forwards the event to the event recorder
@@ -179,7 +179,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileResources(ctx context.Con
 			"name", cd.Spec.Name,
 		)
 
-		capiProvider := r.CAPIProvider(r.Client, cd.Namespace)
+		capiProvider := r.CAPIProvider(r.Client, cd.Namespace, cd.Spec.CurrentClusterName)
 
 		clusters, err = capiProvider.ListClusters(ctx)
 		if err != nil {
@@ -238,6 +238,7 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileClusters(ctx context.Cont
 	inventoryResources := []clustersv1alpha1.ResourceRef{}
 
 	for _, cluster := range clusters {
+		logger.Info("cluster name", "name", cluster.Name, "cluster.ID", cluster.ID, "currentClusterID", currentClusterID)
 		if currentClusterID != "" && currentClusterID == cluster.ID {
 			logger.Info("skipping current cluster")
 			continue

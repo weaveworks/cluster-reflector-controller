@@ -58,6 +58,9 @@ type AutomatedClusterDiscoverySpec struct {
 	CommonLabels map[string]string `json:"commonLabels,omitempty"`
 	// Annotations to add to all generated resources.
 	CommonAnnotations map[string]string `json:"commonAnnotations,omitempty"`
+
+	// Current Cluster name indicating the management cluster
+	CurrentClusterName string `json:"currentClusterName,omitempty"`
 }
 
 // AutomatedClusterDiscoveryStatus defines the observed state of AutomatedClusterDiscovery

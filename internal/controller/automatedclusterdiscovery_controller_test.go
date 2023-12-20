@@ -942,7 +942,7 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 		reconciler := &AutomatedClusterDiscoveryReconciler{
 			Client: k8sClient,
 			Scheme: scheme,
-			CAPIProvider: func(capiclient client.Client, namespace string) providers.Provider {
+			CAPIProvider: func(capiclient client.Client, namespace, managementClusterName string) providers.Provider {
 				return &testProvider
 			},
 			EventRecorder: &mockEventRecorder{},

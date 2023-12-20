@@ -114,8 +114,8 @@ func main() {
 		AKSProvider: func(subscriptionID string) providers.Provider {
 			return azure.NewAzureProvider(subscriptionID)
 		},
-		CAPIProvider: func(kubeclient client.Client, namespace string) providers.Provider {
-			return capi.NewCAPIProvider(kubeclient, namespace)
+		CAPIProvider: func(kubeclient client.Client, namespace, managementClusterName string) providers.Provider {
+			return capi.NewCAPIProvider(kubeclient, namespace, managementClusterName)
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AutomatedClusterDiscovery")
