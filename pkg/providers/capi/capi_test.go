@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	clustersv1alpha1 "github.com/weaveworks/cluster-reflector-controller/api/v1alpha1"
 	"github.com/weaveworks/cluster-reflector-controller/pkg/providers"
 )
 
@@ -29,7 +30,7 @@ func TestClusterProvider_ListClusters(t *testing.T) {
 	}
 
 	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(clusters...).Build()
-	provider := NewCAPIProvider(client, "default", "")
+	provider := NewCAPIProvider(client, "default", &clustersv1alpha1.Cluster{Name: "management-cluster"})
 
 	provided, err := provider.ListClusters(context.TODO())
 	if err != nil {
@@ -39,6 +40,7 @@ func TestClusterProvider_ListClusters(t *testing.T) {
 	expected := []*providers.ProviderCluster{
 		{
 			Name:       "cluster-1",
+			ID:         "cluster-1",
 			KubeConfig: nil,
 		},
 	}

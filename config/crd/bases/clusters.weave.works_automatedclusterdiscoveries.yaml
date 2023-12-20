@@ -62,9 +62,16 @@ spec:
                   type: string
                 description: Labels to add to all generated resources.
                 type: object
-              currentClusterName:
+              currentClusterRef:
                 description: Current Cluster name indicating the management cluster
-                type: string
+                  used to avoid choosing the cluster the controller is running in
+                properties:
+                  name:
+                    description: Name is the name of the cluster
+                    type: string
+                required:
+                - name
+                type: object
               disableTags:
                 description: If DisableTags is true, labels will not be applied to
                   the generated Clusters from the tags on the upstream Clusters.

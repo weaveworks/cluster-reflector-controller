@@ -28,6 +28,12 @@ type AKS struct {
 	SubscriptionID string `json:"subscriptionID"`
 }
 
+type Cluster struct {
+	// Name is the name of the cluster
+	// +required
+	Name string `json:"name"`
+}
+
 // AutomatedClusterDiscoverySpec defines the desired state of AutomatedClusterDiscovery
 type AutomatedClusterDiscoverySpec struct {
 	// Name is the name of the cluster
@@ -60,7 +66,8 @@ type AutomatedClusterDiscoverySpec struct {
 	CommonAnnotations map[string]string `json:"commonAnnotations,omitempty"`
 
 	// Current Cluster name indicating the management cluster
-	CurrentClusterName string `json:"currentClusterName,omitempty"`
+	// used to avoid choosing the cluster the controller is running in
+	CurrentClusterRef Cluster `json:"currentClusterRef,omitempty"`
 }
 
 // AutomatedClusterDiscoveryStatus defines the observed state of AutomatedClusterDiscovery
