@@ -52,6 +52,21 @@ spec:
                 required:
                 - subscriptionID
                 type: object
+              capi:
+                description: CAPI configures discovery of CAPI clusters
+                properties:
+                  currentClusterRef:
+                    description: Current Cluster name indicating the management cluster
+                      used to avoid choosing the cluster the controller is running
+                      in
+                    properties:
+                      name:
+                        description: Name is the name of the cluster
+                        type: string
+                    required:
+                    - name
+                    type: object
+                type: object
               commonAnnotations:
                 additionalProperties:
                   type: string
@@ -61,16 +76,6 @@ spec:
                 additionalProperties:
                   type: string
                 description: Labels to add to all generated resources.
-                type: object
-              currentClusterRef:
-                description: Current Cluster name indicating the management cluster
-                  used to avoid choosing the cluster the controller is running in
-                properties:
-                  name:
-                    description: Name is the name of the cluster
-                    type: string
-                required:
-                - name
                 type: object
               disableTags:
                 description: If DisableTags is true, labels will not be applied to

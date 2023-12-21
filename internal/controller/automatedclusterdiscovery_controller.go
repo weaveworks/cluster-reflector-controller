@@ -179,8 +179,8 @@ func (r *AutomatedClusterDiscoveryReconciler) reconcileResources(ctx context.Con
 			"name", cd.Spec.Name,
 		)
 
-		capiProvider := r.CAPIProvider(r.Client, cd.Namespace, &cd.Spec.CurrentClusterRef)
-		clusterID = cd.Spec.CurrentClusterRef.Name
+		capiProvider := r.CAPIProvider(r.Client, cd.Namespace, &cd.Spec.CAPI.CurrentClusterRef)
+		clusterID = cd.Spec.CAPI.CurrentClusterRef.String()
 
 		clusters, err = capiProvider.ListClusters(ctx)
 		if err != nil {

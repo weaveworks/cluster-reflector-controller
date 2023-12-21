@@ -922,6 +922,11 @@ func TestAutomatedClusterDiscoveryReconciler(t *testing.T) {
 			Spec: clustersv1alpha1.AutomatedClusterDiscoverySpec{
 				Type:     "capi",
 				Interval: metav1.Duration{Duration: time.Minute},
+				CAPI: &clustersv1alpha1.CAPI{
+					CurrentClusterRef: clustersv1alpha1.Cluster{
+						Name: "management-cluster",
+					},
+				},
 			},
 		}
 

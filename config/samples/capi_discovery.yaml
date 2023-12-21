@@ -6,5 +6,6 @@ metadata:
 spec:
   type: capi
   interval: 10m
-  currentClusterRef:
-    name: management-cluster
+  capi:
+    currentClusterRef:
+      name: testcapicluster

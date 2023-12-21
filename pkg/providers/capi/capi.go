@@ -52,5 +52,5 @@ func (p *CAPIProvider) ListClusters(ctx context.Context) ([]*providers.ProviderC
 // ProviderCluster has an ID to identify the cluster, but capi cluster doesn't have a Cluster ID
 // therefore wont't match in the case of CAPI
 func (p *CAPIProvider) ClusterID(ctx context.Context, kubeClient client.Reader) (string, error) {
-	return p.ManagementClusterRef.Name, nil
+	return p.ManagementClusterRef.String(), nil
 }

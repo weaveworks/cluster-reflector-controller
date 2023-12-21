@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
+
 	"github.com/fluxcd/pkg/apis/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -28,10 +30,22 @@ type AKS struct {
 	SubscriptionID string `json:"subscriptionID"`
 }
 
+// CAPI defines the desired state of CAPI
+type CAPI struct {
+	// Current Cluster name indicating the management cluster
+	// used to avoid choosing the cluster the controller is running in
+	CurrentClusterRef Cluster `json:"currentClusterRef,omitempty"`
+}
+
 type Cluster struct {
 	// Name is the name of the cluster
 	// +required
 	Name string `json:"name"`
+}
+
+// String returns the string representation of the Cluster
+func (c Cluster) String() string {
+	return fmt.Sprintf("%v", c.Name)
 }
 
 // AutomatedClusterDiscoverySpec defines the desired state of AutomatedClusterDiscovery
@@ -51,6 +65,9 @@ type AutomatedClusterDiscoverySpec struct {
 	// AKS configures discovery of AKS clusters from Azure.
 	AKS *AKS `json:"aks,omitempty"`
 
+	// CAPI configures discovery of CAPI clusters
+	CAPI *CAPI `json:"capi,omitempty"`
+
 	// The interval at which to run the discovery
 	// +required
 	Interval metav1.Duration `json:"interval"`
@@ -64,10 +81,6 @@ type AutomatedClusterDiscoverySpec struct {
 	CommonLabels map[string]string `json:"commonLabels,omitempty"`
 	// Annotations to add to all generated resources.
 	CommonAnnotations map[string]string `json:"commonAnnotations,omitempty"`
-
-	// Current Cluster name indicating the management cluster
-	// used to avoid choosing the cluster the controller is running in
-	CurrentClusterRef Cluster `json:"currentClusterRef,omitempty"`
 }
 
 // AutomatedClusterDiscoveryStatus defines the observed state of AutomatedClusterDiscovery
