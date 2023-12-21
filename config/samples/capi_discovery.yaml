@@ -8,4 +8,4 @@ spec:
   interval: 10m
   capi:
     currentClusterRef:
-      name: testcapicluster
+      name: management-cluster

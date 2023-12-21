@@ -17,8 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"fmt"
-
 	"github.com/fluxcd/pkg/apis/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -45,7 +43,7 @@ type Cluster struct {
 
 // String returns the string representation of the Cluster
 func (c Cluster) String() string {
-	return fmt.Sprintf("%v", c.Name)
+	return c.Name
 }
 
 // AutomatedClusterDiscoverySpec defines the desired state of AutomatedClusterDiscovery
