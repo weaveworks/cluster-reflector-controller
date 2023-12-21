@@ -44,13 +44,28 @@ spec:
               AutomatedClusterDiscovery
             properties:
               aks:
-                description: AKS defines the desired state of AKS
+                description: AKS configures discovery of AKS clusters from Azure.
                 properties:
                   subscriptionID:
                     description: SubscriptionID is the Azure subscription ID
                     type: string
                 required:
                 - subscriptionID
+                type: object
+              capi:
+                description: CAPI configures discovery of CAPI clusters
+                properties:
+                  currentClusterRef:
+                    description: Current Cluster name indicating the management cluster
+                      used to avoid choosing the cluster the controller is running
+                      in
+                    properties:
+                      name:
+                        description: Name is the name of the cluster
+                        type: string
+                    required:
+                    - name
+                    type: object
                 type: object
               commonAnnotations:
                 additionalProperties:

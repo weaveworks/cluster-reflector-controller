@@ -28,6 +28,24 @@ type AKS struct {
 	SubscriptionID string `json:"subscriptionID"`
 }
 
+// CAPI defines the desired state of CAPI
+type CAPI struct {
+	// Current Cluster name indicating the management cluster
+	// used to avoid choosing the cluster the controller is running in
+	CurrentClusterRef Cluster `json:"currentClusterRef,omitempty"`
+}
+
+type Cluster struct {
+	// Name is the name of the cluster
+	// +required
+	Name string `json:"name"`
+}
+
+// String returns the string representation of the Cluster
+func (c Cluster) String() string {
+	return c.Name
+}
+
 // AutomatedClusterDiscoverySpec defines the desired state of AutomatedClusterDiscovery
 type AutomatedClusterDiscoverySpec struct {
 	// Name is the name of the cluster
@@ -44,6 +62,9 @@ type AutomatedClusterDiscoverySpec struct {
 
 	// AKS configures discovery of AKS clusters from Azure.
 	AKS *AKS `json:"aks,omitempty"`
+
+	// CAPI configures discovery of CAPI clusters
+	CAPI *CAPI `json:"capi,omitempty"`
 
 	// The interval at which to run the discovery
 	// +required
