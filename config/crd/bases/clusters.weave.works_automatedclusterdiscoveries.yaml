@@ -43,10 +43,11 @@ spec:
             type: object
           spec:
             description: AutomatedClusterDiscoverySpec defines the desired state of
-              AutomatedClusterDiscovery
+              AutomatedClusterDiscovery.
             properties:
               aks:
                 description: AKS configures discovery of AKS clusters from Azure.
+                  Must be provided if the type is aks.
                 properties:
                   subscriptionID:
                     description: SubscriptionID is the Azure subscription ID
@@ -60,7 +61,7 @@ spec:
                   currentClusterRef:
                     description: Current Cluster name indicating the management cluster
                       used to avoid choosing the cluster the controller is running
-                      in
+                      in.
                     properties:
                       name:
                         description: Name is the name of the cluster
@@ -83,20 +84,28 @@ spec:
                 description: If DisableTags is true, labels will not be applied to
                   the generated Clusters from the tags on the upstream Clusters.
                 type: boolean
+              eks:
+                description: EKS configures discovery of EKS clusters from AWS. Must
+                  be provided if the type is eks.
+                properties:
+                  region:
+                    description: Region is the AWS region
+                    type: string
+                required:
+                - region
+                type: object
               interval:
                 description: The interval at which to run the discovery
-                type: string
-              name:
-                description: Name is the name of the cluster
                 type: string
               suspend:
                 description: Suspend tells the controller to suspend the reconciliation
                   of this AutomatedClusterDiscovery.
                 type: boolean
               type:
-                description: Type is the provider type.
+                description: Type is the provider type
                 enum:
                 - aks
+                - eks
                 - capi
                 type: string
             required:
